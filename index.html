@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>成績計算小幫手 V11.0 - 奕鈞老師</title>
+    <title>成績計算小幫手 V12.0 - 奕鈞老師</title>
     
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -80,16 +80,17 @@
         };
 
         // --- Constants ---
+        // V12.0 Added 'life'
         const SUBJECT_ORDER = [
             'chi', 'lit', 'eng', 'mat', 'soc', 'his', 'geo', 'civ', 
-            'sci', 'bio', 'phy_chem', 'earth', 'phy', 'chem', 
+            'sci', 'bio', 'phy_chem', 'earth', 'life', 'phy', 'chem', 
             'comp', 'art', 'vis_art', 'perf_art', 'hlt', 'health', 'pe', 'act', 'counsel', 'tec', 'living_tech', 'info_tech', 'local'
         ];
 
         const ALL_SUBJECTS_MAP = {
             chi: '國語', lit: '國文', eng: '英語', mat: '數學', 
             soc: '社會', his: '歷史', geo: '地理', civ: '公民', 
-            sci: '自然', bio: '生物', phy_chem: '理化', earth: '地科', 
+            sci: '自然', bio: '生物', phy_chem: '理化', earth: '地科', life: '生活',
             phy: '物理', chem: '化學', comp: '作文', art: '藝術', vis_art: '視覺藝術', perf_art: '表演藝術',
             hlt: '健體', health: '健康', pe: '體育', act: '綜合', counsel: '輔導', tec: '科技', living_tech: '生科', info_tech: '資訊', local: '本土語'
         };
@@ -107,6 +108,7 @@
             bio: { ui: 'green', hex: '#22c55e' },
             phy_chem: { ui: 'indigo', hex: '#6366f1' },
             earth: { ui: 'cyan', hex: '#06b6d4' },
+            life: { ui: 'lime', hex: '#84cc16' }, // New Life color
             phy: { ui: 'sky', hex: '#0ea5e9' },
             chem: { ui: 'fuchsia', hex: '#d946ef' },
             comp: { ui: 'slate', hex: '#64748b' },
@@ -124,7 +126,7 @@
             local: { ui: 'stone', hex: '#78716c' },
         };
 
-        const ALL_SUBJECTS = SUBJECT_ORDER.map(id => ({ id, name: ALL_SUBJECTS_MAP[id] }));
+        const INITIAL_SUBJECTS = SUBJECT_ORDER.map(id => ({ id, name: ALL_SUBJECTS_MAP[id] }));
 
         const TABS = { INPUT: 'input', ANALYSIS: 'analysis', REPORTS: 'reports' };
 
@@ -156,6 +158,7 @@
             const centerY = size / 2;
             const radius = size * 0.4; 
             
+            // White background is CRITICAL for JPEG and Word
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, size, size);
 
@@ -226,6 +229,10 @@
             const [activeTab, setActiveTab] = useState(TABS.INPUT);
             const [students, setStudents] = useState([]);
             
+            // V12.0: Dynamic Subjects List
+            const [subjectList, setSubjectList] = useState(INITIAL_SUBJECTS);
+            const [newSubjectName, setNewSubjectName] = useState('');
+
             const [visibleSubjectIds, setVisibleSubjectIds] = useState(['chi', 'eng', 'mat', 'soc', 'sci']);
             const [scoringSubjectIds, setScoringSubjectIds] = useState(['chi', 'eng', 'mat', 'soc', 'sci']);
             const [compMode, setCompMode] = useState('100');
@@ -260,7 +267,10 @@
                 return () => { try { document.body.removeChild(script); } catch (e) {} }
             }, []);
 
-            const sortedVisibleSubjects = useMemo(() => SUBJECT_ORDER.filter(id => visibleSubjectIds.includes(id)), [visibleSubjectIds]);
+            // V12.0: Sort visible subjects based on subjectList order
+            const sortedVisibleSubjects = useMemo(() => {
+                return subjectList.filter(s => visibleSubjectIds.includes(s.id)).map(s => s.id);
+            }, [visibleSubjectIds, subjectList]);
 
             const processedData = useMemo(() => {
                 let data = students.map(student => {
@@ -355,6 +365,37 @@
             const handleRemoveStudent = (id) => setStudents(students.filter(s => s.id !== id));
             const handleClearData = () => { if (confirmClear) { setStudents([]); setConfirmClear(false); } else { setConfirmClear(true); setTimeout(() => setConfirmClear(false), 3000); } };
 
+            // V12.0: Custom Subjects
+            const handleAddCustomSubject = () => {
+                if(!newSubjectName.trim()) return;
+                const newId = `custom_${Date.now()}`;
+                setSubjectList([...subjectList, { id: newId, name: newSubjectName.trim() }]);
+                setNewSubjectName('');
+                // Automatically select the new subject
+                setVisibleSubjectIds(prev => [...prev, newId]);
+                setScoringSubjectIds(prev => [...prev, newId]);
+            };
+
+            // V12.0: Quick Select Logic
+            const handleQuickSelect = (type) => {
+                let vis = [], scor = [];
+                if (type === 'elem') {
+                    // Chi, Eng, Mat, Soc, Sci
+                    vis = ['chi', 'eng', 'mat', 'soc', 'sci'];
+                    scor = ['chi', 'eng', 'mat', 'soc', 'sci'];
+                } else if (type === 'junior') {
+                    // Lit, Eng, Mat, His, Geo, Civ, Bio, PhyChem, Earth, Comp(Vis only)
+                    vis = ['lit', 'eng', 'mat', 'his', 'geo', 'civ', 'bio', 'phy_chem', 'earth', 'comp'];
+                    scor = ['lit', 'eng', 'mat', 'his', 'geo', 'civ', 'bio', 'phy_chem', 'earth'];
+                } else if (type === 'senior') {
+                    // Lit, Eng, Mat, His, Geo, Civ, Bio, Phy, Chem
+                    vis = ['lit', 'eng', 'mat', 'his', 'geo', 'civ', 'bio', 'phy', 'chem'];
+                    scor = ['lit', 'eng', 'mat', 'his', 'geo', 'civ', 'bio', 'phy', 'chem'];
+                }
+                setVisibleSubjectIds(vis);
+                setScoringSubjectIds(scor);
+            };
+
             const processImportRows = (rows) => {
                 if (rows.length === 0) return [];
                 const newStudents = [];
@@ -367,7 +408,10 @@
                             const val = String(cell || '').trim();
                             if (val === '座號') headerMap[cellIdx] = 'seatNo';
                             else if (val === '姓名') headerMap[cellIdx] = 'name';
-                            else { const sub = ALL_SUBJECTS.find(s => s.name === val); if (sub) headerMap[cellIdx] = sub.id; }
+                            else { 
+                                const sub = subjectList.find(s => s.name === val); 
+                                if (sub) headerMap[cellIdx] = sub.id; 
+                            }
                         });
                         startRowIndex = i + 1; break;
                     }
@@ -378,10 +422,11 @@
                     let seatNo = '', name = '', scores = {};
                     if (headerMap) {
                         row.forEach((cell, cellIdx) => {
+                            const type = headerMap[cellIdx];
                             const val = String(cell || '').trim();
-                            if (headerMap[cellIdx] === 'seatNo') seatNo = val;
-                            else if (headerMap[cellIdx] === 'name') name = val;
-                            else if (headerMap[cellIdx]) scores[headerMap[cellIdx]] = val;
+                            if (type === 'seatNo') seatNo = val;
+                            else if (type === 'name') name = val;
+                            else if (type) scores[type] = val;
                         });
                     } else {
                         seatNo = String(row[0] || '').trim();
@@ -431,9 +476,9 @@
             };
 
             const handleDownloadTemplate = () => {
-                const headers = ['座號', '姓名', ...sortedVisibleSubjects.map(id => ALL_SUBJECTS.find(s=>s.id===id).name)];
-                const csv = '\uFEFF' + headers.join(',') + '\n1,王小明,80,90,85,,\n2,李大華,75,88,92,,';
-                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                // V12.0: Updated template content
+                const csvContent = `座號,姓名,國語,國文,英語,數學,社會,歷史,地理,公民,自然,生物,生活,物理,化學,理化,本土語,作文,生科\n1,周杰倫,88,93,91,97,90,98,95,86,87,98,99,66,67,80,,6,\n2,蔡依林,91,98,61,95,92,85,87,92,82,78,95,77,71,83,,5,\n3,林俊傑,95,70,87,66,99,65,69,67,80,94,96,68,45,71,,4,\n(座號必填),(姓名選填),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除),(不需要的科目請刪除)`;
+                const blob = new Blob(["\uFEFF"+csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = '成績匯入範例.csv';
@@ -445,7 +490,7 @@
                 if (sortedVisibleSubjects.length === 0) return '';
                 if (reportConfig.incMaxMin || reportConfig.incAvg || reportConfig.incStdDev || reportConfig.incMedian) {
                     if(includeTitle) html += `<h3>各科統計數值</h3>`;
-                    html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">項目</th>${sortedVisibleSubjects.map(id => `<th style="border:1px solid #333; padding:5px;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
+                    html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">項目</th>${sortedVisibleSubjects.map(id => `<th style="border:1px solid #333; padding:5px;">${subjectList.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
                     const rows = [
                         { key: 'incAvg', label: '平均', val: 'avg' }, { key: 'incMaxMin', label: '最高', val: 'max' }, { key: 'incMaxMin', label: '最低', val: 'min' }, { key: 'incMedian', label: '中位數', val: 'median' }, { key: 'incStdDev', label: '標準差', val: 'stdDev' }
                     ];
@@ -459,7 +504,7 @@
                         const maxLabelsSub = nonCompSubjects.reduce((prev, curr) => (statistics[curr]?.distLabels.length > statistics[prev]?.distLabels.length) ? curr : prev, nonCompSubjects[0]);
                         const labels = statistics[maxLabelsSub]?.distLabels || [];
                         if(includeTitle) html += `<h3>十分級距表 (人數)</h3>`;
-                        html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">級距</th>${nonCompSubjects.map(id => `<th style="border:1px solid #333; padding:5px;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
+                        html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">級距</th>${nonCompSubjects.map(id => `<th style="border:1px solid #333; padding:5px;">${subjectList.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
                         labels.forEach((label, idx) => {
                             html += `<tr><td style="border:1px solid #333; padding:5px;">${label}</td>`;
                             nonCompSubjects.forEach(id => html += `<td style="border:1px solid #333; padding:5px; text-align:center;">${statistics[id]?.distCounts[idx] || ''}</td>`);
@@ -484,7 +529,7 @@
                         const maxLabelsSub5 = subjects5.reduce((prev, curr) => (statistics[curr]?.dist5Labels.length > statistics[prev]?.dist5Labels.length) ? curr : prev, subjects5[0]);
                         const labels5 = statistics[maxLabelsSub5]?.dist5Labels || [];
                         if(includeTitle) html += `<h3>五分級距表 (人數)</h3>`;
-                        html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">級距</th>${subjects5.map(id => `<th style="border:1px solid #333; padding:5px;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
+                        html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">級距</th>${subjects5.map(id => `<th style="border:1px solid #333; padding:5px;">${subjectList.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
                         labels5.forEach((label, idx) => {
                             html += `<tr><td style="border:1px solid #333; padding:5px;">${label}</td>`;
                             subjects5.forEach(id => html += `<td style="border:1px solid #333; padding:5px; text-align:center;">${statistics[id]?.dist5Counts[idx] || ''}</td>`);
@@ -505,7 +550,7 @@
             };
 
             const handleExportClassWord = () => {
-                const headerCells = `<th style="border:1px solid black; background:#eee;">座號</th><th style="border:1px solid black; background:#eee;">姓名</th>${sortedVisibleSubjects.map(id => `<th style="border:1px solid black; background:#eee;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}${reportConfig.showTotal ? '<th style="border:1px solid black; background:#eee;">總分</th>' : ''}${reportConfig.showAvg ? '<th style="border:1px solid black; background:#eee;">平均</th>' : ''}${reportConfig.showRank ? '<th style="border:1px solid black; background:#eee;">排名</th>' : ''}`;
+                const headerCells = `<th style="border:1px solid black; background:#eee;">座號</th><th style="border:1px solid black; background:#eee;">姓名</th>${sortedVisibleSubjects.map(id => `<th style="border:1px solid black; background:#eee;">${subjectList.find(s=>s.id===id).name}</th>`).join('')}${reportConfig.showTotal ? '<th style="border:1px solid black; background:#eee;">總分</th>' : ''}${reportConfig.showAvg ? '<th style="border:1px solid black; background:#eee;">平均</th>' : ''}${reportConfig.showRank ? '<th style="border:1px solid black; background:#eee;">排名</th>' : ''}`;
                 const rows = processedData.map(s => `<tr><td style="border:1px solid black; text-align:center;">${s.seatNo}</td><td style="border:1px solid black; text-align:center;">${s.name}</td>${sortedVisibleSubjects.map(id => `<td style="border:1px solid black; text-align:center;">${s.scores[id] || ''}</td>`).join('')}${reportConfig.showTotal ? `<td style="border:1px solid black; text-align:center;">${s.total}</td>` : ''}${reportConfig.showAvg ? `<td style="border:1px solid black; text-align:center;">${s.average}</td>` : ''}${reportConfig.showRank ? `<td style="border:1px solid black; text-align:center;">${s.rank}</td>` : ''}</tr>`).join('');
                 const statsHTML = getStatsTableHTML();
                 const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${reportTitle}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>@page { size: A4; margin: 1.27cm; } body { font-family: 'BiauKai', sans-serif; }</style></head><body><h1 style="text-align:center; margin-bottom: 5px;">${reportTitle}</h1>${reportSubtitle ? `<h3 style="text-align:center; margin-top: 0;">${reportSubtitle}</h3>` : ''}<h2 style="text-align:center">班級成績一覽表</h2><table style="width:100%; border-collapse: collapse; font-family: 'BiauKai', sans-serif; margin-bottom: 30px;"><tr>${headerCells}</tr>${rows}</table><br/><hr/><br/>${statsHTML}</body></html>`;
@@ -515,17 +560,17 @@
             const handleExportExcel = () => {
                 let csvContent = "\uFEFF"; 
                 csvContent += `${reportTitle}\n${reportSubtitle ? reportSubtitle + '\n' : ''}`;
-                const headers = ['座號', '姓名', ...sortedVisibleSubjects.map(id => ALL_SUBJECTS.find(s => s.id === id)?.name)];
+                const headers = ['座號', '姓名', ...sortedVisibleSubjects.map(id => subjectList.find(s => s.id === id)?.name)];
                 if (reportConfig.showTotal) headers.push('總分');
                 if (reportConfig.showAvg) headers.push('平均');
                 if (reportConfig.showRank) headers.push('排名');
                 csvContent += headers.join(',') + '\n';
                 processedData.forEach(s => { const row = [s.seatNo, s.name, ...sortedVisibleSubjects.map(id => s.scores[id]), reportConfig.showTotal ? s.total : null, reportConfig.showAvg ? s.average : null, reportConfig.showRank ? s.rank : null].filter(i => i !== null); csvContent += row.join(',') + '\n'; });
                 csvContent += '\n\n統計分析\n科目,最高,最低,平均,標準差,中位數\n';
-                sortedVisibleSubjects.forEach(id => { const stat = statistics[id]; if(stat) csvContent += [ALL_SUBJECTS.find(s=>s.id===id).name, stat.max, stat.min, stat.avg, stat.stdDev, stat.median].join(',') + '\n'; });
-                if (reportConfig.incDist10) { csvContent += '\n十分級距 (人數)\n'; const nonComp = sortedVisibleSubjects.filter(id => id!=='comp'); if(nonComp.length){ nonComp.forEach(id => { const stat = statistics[id]; csvContent += `${ALL_SUBJECTS.find(s=>s.id===id).name},` + stat.distLabels.join(',') + '\n人數,' + stat.distCounts.join(',') + '\n'; }); } }
+                sortedVisibleSubjects.forEach(id => { const stat = statistics[id]; if(stat) csvContent += [subjectList.find(s=>s.id===id).name, stat.max, stat.min, stat.avg, stat.stdDev, stat.median].join(',') + '\n'; });
+                if (reportConfig.incDist10) { csvContent += '\n十分級距 (人數)\n'; const nonComp = sortedVisibleSubjects.filter(id => id!=='comp'); if(nonComp.length){ nonComp.forEach(id => { const stat = statistics[id]; csvContent += `${subjectList.find(s=>s.id===id).name},` + stat.distLabels.join(',') + '\n人數,' + stat.distCounts.join(',') + '\n'; }); } }
                 if (reportConfig.incCompDist && sortedVisibleSubjects.includes('comp')) { const stat = statistics['comp']; csvContent += `\n作文 (${compMode}),` + stat.distLabels.join(',') + '\n人數,' + stat.distCounts.join(',') + '\n'; }
-                if (reportConfig.incDist5) { csvContent += '\n五分級距 (人數)\n'; sortedVisibleSubjects.forEach(id => { const stat = statistics[id]; if (!stat.isSpecial && stat.dist5Labels.length > 0) csvContent += `${ALL_SUBJECTS.find(s=>s.id===id).name},` + stat.dist5Labels.join(',') + '\n人數,' + stat.dist5Counts.join(',') + '\n'; }); }
+                if (reportConfig.incDist5) { csvContent += '\n五分級距 (人數)\n'; sortedVisibleSubjects.forEach(id => { const stat = statistics[id]; if (!stat.isSpecial && stat.dist5Labels.length > 0) csvContent += `${subjectList.find(s=>s.id===id).name},` + stat.dist5Labels.join(',') + '\n人數,' + stat.dist5Counts.join(',') + '\n'; }); }
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
@@ -542,7 +587,7 @@
                         const subjects = sortedVisibleSubjects.filter(id => id !== 'comp');
                         if (subjects.length > 0) {
                             h += `<tr style="background:#eee;"><td style="border:1px solid #999; padding:2px;">級距</td>`;
-                            subjects.forEach(id => h += `<td style="border:1px solid #999; padding:2px; text-align:center;">${ALL_SUBJECTS.find(s=>s.id===id).name}</td>`);
+                            subjects.forEach(id => h += `<td style="border:1px solid #999; padding:2px; text-align:center;">${subjectList.find(s=>s.id===id).name}</td>`);
                             h += `</tr>`;
                             const labels = statistics[subjects[0]]?.distLabels || [];
                             labels.forEach((lab, idx) => {
@@ -564,28 +609,24 @@
                 const cards = processedData.map(s => {
                     let radarImg = '';
                     if (reportConfig.incRadar) {
-                        // V10.0 Fix: Ensure JPEG format for Word compatibility
-                        const dataUrl = generateRadarDataURL(s.scores, sortedVisibleSubjects.map(id=>ALL_SUBJECTS.find(sub=>sub.id===id)));
+                        const dataUrl = generateRadarDataURL(s.scores, sortedVisibleSubjects.map(id=>subjectList.find(sub=>sub.id===id)));
                         if (dataUrl) radarImg = `<img src="${dataUrl}" width="250" height="250" style="width:250px; height:250px; display:block; margin:0 auto;" />`;
                     }
 
                     if (!hasStats) {
-                        // Simple Layout
                         return `<div class="page-break" style="page-break-after: always; padding: 20px; font-family: 'BiauKai', sans-serif;">
                             <h2 style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 5px;">${reportTitle} - 個人成績單</h2>
                             ${reportSubtitle ? `<h4 style="text-align:center; margin-top:0;">${reportSubtitle}</h4>` : ''}
                             <div style="margin: 20px 0; font-size: 1.2em; text-align:center;"><p><strong>座號：</strong>${s.seatNo} &nbsp;&nbsp; <strong>姓名：</strong>${s.name}</p></div>
                             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
                                 <tr style="background: #f0f0f0;"><th style="border: 1px solid #333; padding: 8px;">科目</th><th style="border: 1px solid #333; padding: 8px;">成績</th></tr>
-                                ${sortedVisibleSubjects.map(id => `<tr><td style="border: 1px solid #333; padding: 8px; text-align: center;">${ALL_SUBJECTS.find(sub=>sub.id===id).name}</td><td style="border: 1px solid #333; padding: 8px; text-align: center; font-weight: bold;">${s.scores[id] || '-'}</td></tr>`).join('')}
+                                ${sortedVisibleSubjects.map(id => `<tr><td style="border: 1px solid #333; padding: 8px; text-align: center;">${subjectList.find(sub=>sub.id===id).name}</td><td style="border: 1px solid #333; padding: 8px; text-align: center; font-weight: bold;">${s.scores[id] || '-'}</td></tr>`).join('')}
                             </table>
                             <div style="border: 2px solid #666; padding: 15px; border-radius: 8px; text-align:center;"><p><strong>總分：</strong> ${s.total} &nbsp; <strong>平均：</strong> ${s.average} &nbsp; <strong>排名：</strong> ${s.rank}</p></div>
                             <div style="margin-top: 40px; text-align: right;"><p>導師簽章：___________ &nbsp; 家長簽章：___________</p></div>
                         </div>`;
                     }
 
-                    // Complex Layout (Left: Chart, Right: Grades)
-                    // V10.0 Fix: Added &nbsp; after radarImg div to prevent Word crash when only image is present
                     return `<div class="page-break" style="page-break-after: always; padding: 10px; font-family: 'BiauKai', sans-serif;">
                         <h2 style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 5px;">${reportTitle} - 個人成績單</h2>
                         ${reportSubtitle ? `<h4 style="text-align:center; margin-top:0;">${reportSubtitle}</h4>` : ''}
@@ -599,7 +640,7 @@
                                 <h3 style="border-bottom:1px solid #ccc; font-size:12pt;">成績列表</h3>
                                 <table style="width: 100%; border-collapse: collapse; font-size:11pt;">
                                     <tr style="background: #f0f0f0;"><th style="border: 1px solid #333; padding: 4px;">科目</th><th style="border: 1px solid #333; padding: 4px;">成績</th></tr>
-                                    ${sortedVisibleSubjects.map(id => `<tr><td style="border: 1px solid #333; padding: 4px; text-align: center;">${ALL_SUBJECTS.find(sub=>sub.id===id).name}</td><td style="border: 1px solid #333; padding: 4px; text-align: center; font-weight: bold;">${s.scores[id] || '-'}</td></tr>`).join('')}
+                                    ${sortedVisibleSubjects.map(id => `<tr><td style="border: 1px solid #333; padding: 4px; text-align: center;">${subjectList.find(sub=>sub.id===id).name}</td><td style="border: 1px solid #333; padding: 4px; text-align: center; font-weight: bold;">${s.scores[id] || '-'}</td></tr>`).join('')}
                                 </table>
                                 <div style="margin-top: 50px;"><p style="margin-bottom:20px;">導師簽章：___________</p><p>家長簽章：___________</p></div>
                             </td>
@@ -607,7 +648,6 @@
                     </div>`;
                 }).join('');
                 
-                // V10.0 Fix: Improved Word Headers and Page Breaks
                 const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
                 <head><meta charset='utf-8'><title>個人成績單</title>
                 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
@@ -621,7 +661,7 @@
                 <div className="min-h-screen bg-[#F0FDF4] font-sans text-gray-800 flex flex-col">
                     <header className="bg-white border-b border-emerald-100 sticky top-0 z-40 shadow-sm flex-none">
                         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-                            <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center text-white shadow-emerald-200 shadow-lg"><Icon name="Calculator" size={24} /></div><h1 className="text-xl font-bold text-gray-800 tracking-tight">成績計算小幫手 V11.0</h1></div>
+                            <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center text-white shadow-emerald-200 shadow-lg"><Icon name="Calculator" size={24} /></div><h1 className="text-xl font-bold text-gray-800 tracking-tight">成績計算小幫手 V12.0</h1></div>
                             <div className="text-sm text-gray-500 hidden sm:block">奕鈞老師</div>
                         </div>
                     </header>
@@ -631,19 +671,38 @@
                         </div>
                         {activeTab === TABS.INPUT && <div className="space-y-6">
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 mb-6">
-                                <div className="flex items-center gap-4 mb-4"><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Icon name="Settings" size={20} /> 第一步：設定計分科目</h3><div className="flex items-center gap-3 text-xs bg-emerald-50/50 px-3 py-1.5 rounded-full border border-emerald-100"><span className="text-gray-500 font-bold">圖示說明：</span><div className="flex items-center gap-1"><div className="w-4 h-4 bg-rose-400 rounded flex items-center justify-center text-white"><Icon name="Eye" size={10}/></div><span className="text-gray-600">顯示於表格</span></div><div className="flex items-center gap-1"><div className="w-4 h-4 bg-blue-500 rounded flex items-center justify-center text-white"><Icon name="Calculator" size={10}/></div><span className="text-gray-600">列入總分計算</span></div><div className="flex items-center gap-1"><div className="w-4 h-4 bg-emerald-600 rounded flex items-center justify-center text-white"><Icon name="Check" size={10} className="stroke-[3]"/></div><span className="text-gray-600">全選</span></div></div></div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">{ALL_SUBJECTS.map(sub => { const isVisible = visibleSubjectIds.includes(sub.id), isScoring = scoringSubjectIds.includes(sub.id), isBoth = isVisible && isScoring; return <div key={sub.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isVisible || isScoring ? 'bg-blue-50 border-blue-200' : 'bg-gray-50/50 border-gray-200 hover:border-emerald-300'}`}><div className="flex items-center gap-2 cursor-pointer" onClick={() => handleMasterToggle(sub.id)}><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors shadow-sm ${isBoth ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>{isBoth && <Icon name="Check" size={14} className="stroke-[3]" />}</div><span className="font-bold text-gray-700">{sub.name}</span></div><div className="flex gap-2"><label className="cursor-pointer flex items-center"><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isVisible ? 'bg-rose-400 border-rose-400 text-white' : 'bg-white border-rose-200 text-rose-200'}`} title="顯示於表格"><Icon name="Eye" size={12}/></div><input type="checkbox" className="hidden" checked={isVisible} onChange={() => handleToggleVisible(sub.id)} /></label><label className="cursor-pointer flex items-center"><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isScoring ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white border-blue-200 text-blue-200'}`} title="列入總分計算"><Icon name="Calculator" size={12}/></div><input type="checkbox" className="hidden" checked={isScoring} onChange={() => handleToggleScoring(sub.id)} /></label></div></div>; })}</div>
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                                    <h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2 flex-shrink-0"><Icon name="Settings" size={20} /> 第一步：設定計分科目</h3>
+                                    {/* Quick Select Buttons */}
+                                    <div className="flex flex-wrap gap-2">
+                                        <button onClick={() => handleQuickSelect('elem')} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-lg text-sm hover:bg-orange-200">國小快速選取</button>
+                                        <button onClick={() => handleQuickSelect('junior')} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">國中快速選取</button>
+                                        <button onClick={() => handleQuickSelect('senior')} className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200">高中快速選取</button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs bg-emerald-50/50 px-3 py-2 rounded-lg border border-emerald-100 mb-4 flex-wrap">
+                                    <span className="text-gray-500 font-bold">圖示說明：</span>
+                                    <div className="flex items-center gap-1"><div className="w-4 h-4 bg-rose-400 rounded flex items-center justify-center text-white"><Icon name="Eye" size={10}/></div><span className="text-gray-600">顯示於表格</span></div>
+                                    <div className="flex items-center gap-1"><div className="w-4 h-4 bg-blue-500 rounded flex items-center justify-center text-white"><Icon name="Calculator" size={10}/></div><span className="text-gray-600">列入總分計算</span></div>
+                                    <div className="flex items-center gap-1"><div className="w-4 h-4 bg-emerald-600 rounded flex items-center justify-center text-white"><Icon name="Check" size={10} className="stroke-[3]"/></div><span className="text-gray-600">全選</span></div>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-4">{subjectList.map(sub => { const isVisible = visibleSubjectIds.includes(sub.id), isScoring = scoringSubjectIds.includes(sub.id), isBoth = isVisible && isScoring; return <div key={sub.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isVisible || isScoring ? 'bg-blue-50 border-blue-200' : 'bg-gray-50/50 border-gray-200 hover:border-emerald-300'}`}><div className="flex items-center gap-2 cursor-pointer" onClick={() => handleMasterToggle(sub.id)}><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors shadow-sm ${isBoth ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>{isBoth && <Icon name="Check" size={14} className="stroke-[3]" />}</div><span className="font-bold text-gray-700">{sub.name}</span></div><div className="flex gap-2"><label className="cursor-pointer flex items-center"><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isVisible ? 'bg-rose-400 border-rose-400 text-white' : 'bg-white border-rose-200 text-rose-200'}`} title="顯示於表格"><Icon name="Eye" size={12}/></div><input type="checkbox" className="hidden" checked={isVisible} onChange={() => handleToggleVisible(sub.id)} /></label><label className="cursor-pointer flex items-center"><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isScoring ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white border-blue-200 text-blue-200'}`} title="列入總分計算"><Icon name="Calculator" size={12}/></div><input type="checkbox" className="hidden" checked={isScoring} onChange={() => handleToggleScoring(sub.id)} /></label></div></div>; })}</div>
+                                {/* Add Custom Subject */}
+                                <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
+                                    <input type="text" value={newSubjectName} onChange={(e) => setNewSubjectName(e.target.value)} placeholder="新增自訂科目名稱..." className="px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                                    <button onClick={handleAddCustomSubject} className="px-3 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm flex items-center gap-1"><Icon name="Plus" size={16}/> 新增科目</button>
+                                </div>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100"><div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4"><div><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Icon name="Users" size={20} /> 學生名單與成績輸入</h3><p className="text-xs text-gray-500 mt-2">✨ 創作者保證所有資料僅在本機瀏覽器運作，不會上傳網路。</p></div><div className="flex flex-wrap gap-2"><div className="relative"><input type="file" ref={fileInputRef} accept=".csv,.txt,.xlsx,.xls" onChange={handleFileUpload} className="hidden" /><button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"><Icon name="Upload" size={16} /> 匯入 Excel/CSV</button></div><button onClick={() => setShowPasteModal(true)} className="flex items-center gap-2 px-3 py-2 bg-teal-100 text-teal-700 rounded-lg hover:bg-teal-200 transition-colors text-sm font-medium"><Icon name="ClipboardPaste" size={16} /> 貼上</button><button onClick={handleClearData} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${confirmClear ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}><Icon name="Trash2" size={16} /> {confirmClear ? '確定刪除？' : '清空'}</button><button onClick={handleAddStudent} className="flex items-center gap-2 px-3 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-md transition-colors text-sm font-medium"><Icon name="Plus" size={16} /> 新增</button><button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium ml-2">下載匯入範例</button></div></div><div className="overflow-x-auto rounded-xl border border-emerald-100 max-h-[600px]"><table className="w-full text-sm relative"><thead className="sticky top-0 z-10"><tr className="bg-emerald-50 text-emerald-900 shadow-sm"><th className="p-3 text-left w-20 bg-emerald-50">座號</th><th className="p-3 text-left w-28 bg-emerald-50">姓名</th>{sortedVisibleSubjects.map(subId => <th key={subId} className="p-3 text-center min-w-[80px] bg-emerald-50">{ALL_SUBJECTS.find(s => s.id === subId)?.name}{!scoringSubjectIds.includes(subId) && <span className="block text-[10px] text-gray-400 scale-90">(不計分)</span>}</th>)}<th className="p-3 w-16 bg-emerald-50">操作</th></tr></thead><tbody className="divide-y divide-emerald-50">{students.length === 0 ? <tr><td colSpan={100} className="p-8 text-center text-gray-400">尚無資料</td></tr> : students.map((student) => <tr key={student.id} className="hover:bg-emerald-50/30 transition-colors group"><td className="p-2"><input type="text" value={student.seatNo} onChange={(e) => handleUpdateStudent(student.id, 'seatNo', e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none text-center font-medium bg-white" placeholder="01" /></td><td className="p-2"><input type="text" value={student.name} onChange={(e) => handleUpdateStudent(student.id, 'name', e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none bg-white" placeholder="姓名" /></td>{sortedVisibleSubjects.map(subId => <td key={subId} className="p-2"><input type="number" value={student.scores[subId] || ''} onChange={(e) => handleUpdateScore(student.id, subId, e.target.value)} className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none text-center bg-white ${!scoringSubjectIds.includes(subId) ? 'text-gray-400 bg-gray-50' : ''}`} /></td>)}<td className="p-2 text-center"><button onClick={() => handleRemoveStudent(student.id)} className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"><Icon name="Trash2" size={16} /></button></td></tr>)}</tbody></table></div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100"><div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4"><div><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Icon name="Users" size={20} /> 學生名單與成績輸入</h3><p className="text-xs text-gray-500 mt-2">✨ 創作者保證所有資料僅在本機瀏覽器運作，不會上傳網路。<br/><span className="text-red-500 font-bold">⚠️ 注意：匯入或貼上之科目名稱需與上方設定之科目名稱完全一致。</span></p></div><div className="flex flex-wrap gap-2"><div className="relative"><input type="file" ref={fileInputRef} accept=".csv,.txt,.xlsx,.xls" onChange={handleFileUpload} className="hidden" /><button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"><Icon name="Upload" size={16} /> 匯入 Excel/CSV</button></div><button onClick={() => setShowPasteModal(true)} className="flex items-center gap-2 px-3 py-2 bg-teal-100 text-teal-700 rounded-lg hover:bg-teal-200 transition-colors text-sm font-medium"><Icon name="ClipboardPaste" size={16} /> 貼上</button><button onClick={handleClearData} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${confirmClear ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}><Icon name="Trash2" size={16} /> {confirmClear ? '確定刪除？' : '清空'}</button><button onClick={handleAddStudent} className="flex items-center gap-2 px-3 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-md transition-colors text-sm font-medium"><Icon name="Plus" size={16} /> 新增</button><button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium ml-2">下載匯入範例</button></div></div><div className="overflow-x-auto rounded-xl border border-emerald-100 max-h-[600px]"><table className="w-full text-sm relative"><thead className="sticky top-0 z-10"><tr className="bg-emerald-50 text-emerald-900 shadow-sm"><th className="p-3 text-left w-20 bg-emerald-50">座號</th><th className="p-3 text-left w-28 bg-emerald-50">姓名</th>{sortedVisibleSubjects.map(subId => <th key={subId} className="p-3 text-center min-w-[80px] bg-emerald-50">{subjectList.find(s => s.id === subId)?.name}{!scoringSubjectIds.includes(subId) && <span className="block text-[10px] text-gray-400 scale-90">(不計分)</span>}</th>)}<th className="p-3 w-16 bg-emerald-50">操作</th></tr></thead><tbody className="divide-y divide-emerald-50">{students.length === 0 ? <tr><td colSpan={100} className="p-8 text-center text-gray-400">尚無資料</td></tr> : students.map((student) => <tr key={student.id} className="hover:bg-emerald-50/30 transition-colors group"><td className="p-2"><input type="text" value={student.seatNo} onChange={(e) => handleUpdateStudent(student.id, 'seatNo', e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none text-center font-medium bg-white" placeholder="01" /></td><td className="p-2"><input type="text" value={student.name} onChange={(e) => handleUpdateStudent(student.id, 'name', e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none bg-white" placeholder="姓名" /></td>{sortedVisibleSubjects.map(subId => <td key={subId} className="p-2"><input type="number" value={student.scores[subId] || ''} onChange={(e) => handleUpdateScore(student.id, subId, e.target.value)} className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none text-center bg-white ${!scoringSubjectIds.includes(subId) ? 'text-gray-400 bg-gray-50' : ''}`} /></td>)}<td className="p-2 text-center"><button onClick={() => handleRemoveStudent(student.id)} className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"><Icon name="Trash2" size={16} /></button></td></tr>)}</tbody></table></div></div>
                         </div>}
-                        {activeTab === TABS.ANALYSIS && <div className="space-y-6">{visibleSubjectIds.includes('comp') && <div className="bg-white p-4 rounded-xl border border-orange-100 flex items-center gap-4 shadow-sm"><div className="flex items-center gap-2 text-orange-800 font-bold"><Icon name="PenTool" size={18} /> 作文分析設定：</div><div className="flex gap-2"> {[{ id: '100', label: '一般 (100分制)' }, { id: '6', label: '國中會考 (6級分)' }, { id: '50', label: '段考 (50分制)' }].map(mode => <button key={mode.id} onClick={() => setCompMode(mode.id)} className={`px-3 py-1.5 rounded-lg text-sm transition-all ${compMode === mode.id ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>{mode.label}</button>)} </div></div>}<div className="space-y-8">{sortedVisibleSubjects.map(subId => { const stat = statistics[subId]; if(!stat || stat.count === 0) return null; const colorTheme = SUBJECT_COLORS[subId]?.ui || 'emerald'; return <div key={subId} className={`bg-white p-6 rounded-2xl shadow-sm border border-${colorTheme}-100`}><h3 className={`text-xl font-bold text-${colorTheme}-800 mb-4 border-b pb-2`}>{ALL_SUBJECTS.find(s=>s.id===subId)?.name} 分析 {subId === 'comp' && <span className="text-sm font-normal text-gray-500 ml-2">({stat.isSpecial ? '6級分' : (compMode==='50'?'50分制':'100分制')})</span>}</h3><div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">{['平均', '最高 / 最低', '標準差', '中位數', '應考人數'].map((label, i) => <div key={i} className="bg-gray-50 p-3 rounded-xl text-center"><div className="text-xs text-gray-500 mb-1">{label}</div><div className="text-xl font-bold text-gray-800">{[stat.avg, `${stat.max} / ${stat.min}`, stat.stdDev, stat.median, stat.count][i]}</div></div>)}</div><div className="mb-8"><h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><Icon name="BarChart3" size={16} /> 分數分佈長條圖</h4><div className="flex items-end h-48 gap-1 pb-2 border-b border-gray-100 pl-8 relative"><div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[10px] text-gray-400"><span>{Math.max(...stat.distCounts)}</span><span>0</span></div>{[...stat.distCounts].reverse().map((count, idx, arr) => { const labelsRev = [...stat.distLabels].reverse(); const h = (count / (Math.max(...arr) || 1)) * 100; const intensity = idx < arr.length * 0.4 ? '300' : idx < arr.length * 0.7 ? '500' : '700'; return <div key={idx} className="flex-1 flex flex-col justify-end h-full group relative hover:bg-gray-50 rounded-t-lg"><div className={`mx-auto w-4/5 rounded-t-sm relative transition-all group-hover:brightness-110 bg-${colorTheme}-${intensity}`} style={{height: `${h}%`, minHeight: count>0?'4px':0}}><span className={`absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold text-${colorTheme}-700 opacity-0 group-hover:opacity-100 transition-opacity`}>{count}</span></div><span className="text-[10px] text-gray-400 text-center mt-1 truncate px-0.5">{labelsRev[idx]}</span></div>; })}</div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div><h4 className="text-sm font-bold text-gray-600 mb-2">{stat.isSpecial ? '級分人數表' : '十分級距表'}</h4><div className="overflow-hidden rounded-lg border border-gray-200"><table className="w-full text-xs text-center"><thead className="bg-gray-100"><tr><th>級距</th><th>人數</th></tr></thead><tbody>{stat.distLabels.map((label, i) => <tr key={i} className="border-t border-gray-100"><td className="py-1 text-gray-500 bg-gray-50">{label}</td><td className="font-medium">{stat.distCounts[i]}</td></tr>)}</tbody></table></div></div>{!stat.isSpecial && <div><h4 className="text-sm font-bold text-gray-600 mb-2">五分級距表</h4><div className="overflow-hidden rounded-lg border border-gray-200 h-64 overflow-y-auto"><table className="w-full text-xs text-center"><thead className="bg-gray-100 sticky top-0"><tr><th>級距</th><th>人數</th></tr></thead><tbody>{stat.dist5Labels.map((label, i) => <tr key={i} className="border-t border-gray-100"><td className="py-1 text-gray-500 bg-gray-50">{label}</td><td className="font-medium">{stat.dist5Counts[i]}</td></tr>)}</tbody></table></div></div>}</div></div>; })}</div></div>}
+                        {activeTab === TABS.ANALYSIS && <div className="space-y-6">{visibleSubjectIds.includes('comp') && <div className="bg-white p-4 rounded-xl border border-orange-100 flex items-center gap-4 shadow-sm"><div className="flex items-center gap-2 text-orange-800 font-bold"><Icon name="PenTool" size={18} /> 作文分析設定：</div><div className="flex gap-2"> {[{ id: '100', label: '一般 (100分制)' }, { id: '6', label: '國中會考 (6級分)' }, { id: '50', label: '段考 (50分制)' }].map(mode => <button key={mode.id} onClick={() => setCompMode(mode.id)} className={`px-3 py-1.5 rounded-lg text-sm transition-all ${compMode === mode.id ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>{mode.label}</button>)} </div></div>}<div className="space-y-8">{sortedVisibleSubjects.map(subId => { const stat = statistics[subId]; if(!stat || stat.count === 0) return null; const colorTheme = SUBJECT_COLORS[subId]?.ui || 'emerald'; return <div key={subId} className={`bg-white p-6 rounded-2xl shadow-sm border border-${colorTheme}-100`}><h3 className={`text-xl font-bold text-${colorTheme}-800 mb-4 border-b pb-2`}>{subjectList.find(s=>s.id===subId)?.name} 分析 {subId === 'comp' && <span className="text-sm font-normal text-gray-500 ml-2">({stat.isSpecial ? '6級分' : (compMode==='50'?'50分制':'100分制')})</span>}</h3><div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">{['平均', '最高 / 最低', '標準差', '中位數', '應考人數'].map((label, i) => <div key={i} className="bg-gray-50 p-3 rounded-xl text-center"><div className="text-xs text-gray-500 mb-1">{label}</div><div className="text-xl font-bold text-gray-800">{[stat.avg, `${stat.max} / ${stat.min}`, stat.stdDev, stat.median, stat.count][i]}</div></div>)}</div><div className="mb-8"><h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><Icon name="BarChart3" size={16} /> 分數分佈長條圖</h4><div className="flex items-end h-48 gap-1 pb-2 border-b border-gray-100 pl-8 relative"><div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[10px] text-gray-400"><span>{Math.max(...stat.distCounts)}</span><span>0</span></div>{[...stat.distCounts].reverse().map((count, idx, arr) => { const labelsRev = [...stat.distLabels].reverse(); const h = (count / (Math.max(...arr) || 1)) * 100; const intensity = idx < arr.length * 0.4 ? '300' : idx < arr.length * 0.7 ? '500' : '700'; return <div key={idx} className="flex-1 flex flex-col justify-end h-full group relative hover:bg-gray-50 rounded-t-lg"><div className={`mx-auto w-4/5 rounded-t-sm relative transition-all group-hover:brightness-110 bg-${colorTheme}-${intensity}`} style={{height: `${h}%`, minHeight: count>0?'4px':0}}><span className={`absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold text-${colorTheme}-700 opacity-0 group-hover:opacity-100 transition-opacity`}>{count}</span></div><span className="text-[10px] text-gray-400 text-center mt-1 truncate px-0.5">{labelsRev[idx]}</span></div>; })}</div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div><h4 className="text-sm font-bold text-gray-600 mb-2">{stat.isSpecial ? '級分人數表' : '十分級距表'}</h4><div className="overflow-hidden rounded-lg border border-gray-200"><table className="w-full text-xs text-center"><thead className="bg-gray-100"><tr><th>級距</th><th>人數</th></tr></thead><tbody>{stat.distLabels.map((label, i) => <tr key={i} className="border-t border-gray-100"><td className="py-1 text-gray-500 bg-gray-50">{label}</td><td className="font-medium">{stat.distCounts[i]}</td></tr>)}</tbody></table></div></div>{!stat.isSpecial && <div><h4 className="text-sm font-bold text-gray-600 mb-2">五分級距表</h4><div className="overflow-hidden rounded-lg border border-gray-200 h-64 overflow-y-auto"><table className="w-full text-xs text-center"><thead className="bg-gray-100 sticky top-0"><tr><th>級距</th><th>人數</th></tr></thead><tbody>{stat.dist5Labels.map((label, i) => <tr key={i} className="border-t border-gray-100"><td className="py-1 text-gray-500 bg-gray-50">{label}</td><td className="font-medium">{stat.dist5Counts[i]}</td></tr>)}</tbody></table></div></div>}</div></div>; })}</div></div>}
                         {activeTab === TABS.REPORTS && <div className="space-y-6">
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100"><h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2"><Icon name="Settings" size={20} /> 報表輸出設定</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><div><label className="block text-sm font-medium text-gray-700 mb-1">主標題文字</label><input type="text" value={reportTitle} onChange={e => setReportTitle(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="例如：112學年度第一學期第一次段考" /></div><div><label className="block text-sm font-medium text-gray-700 mb-1">次標題文字 (選填)</label><input type="text" value={reportSubtitle} onChange={e => setReportSubtitle(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="例如：一年一班" /></div></div><div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200"><h4 className="text-sm font-bold text-gray-700 mb-3">勾選要顯示在報表(Word/Excel)中的統計項目：</h4><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{[ {k:'incMaxMin', l:'最高/最低分'}, {k:'incAvg', l:'平均分數'}, {k:'incStdDev', l:'標準差'}, {k:'incMedian', l:'中位數'}, {k:'incDist10', l:'十分級距表'}, {k:'incDist5', l:'五分級距表'}, {k:'incCompDist', l:'作文級距表'}, {k:'incRadar', l:'能力雷達圖 (僅Word)'} ].map(opt => <label key={opt.k} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={reportConfig[opt.k]} onChange={e => setReportConfig({...reportConfig, [opt.k]: e.target.checked})} className="rounded text-emerald-600 focus:ring-emerald-500" /><span className="text-sm text-gray-700">{opt.l}</span></label>)}</div><p className="text-xs text-orange-600 mt-4 bg-orange-50 p-2 rounded">💡 <strong>個人成績單排版建議：</strong> 為了最佳閱讀體驗，建議僅勾選「十分級距表」或「雷達圖」其中一項，或全部不勾選(維持傳統版面)。若同時勾選過多項目，可能會導致排版擁擠。</p></div><div className="flex flex-wrap gap-3"><button onClick={handleExportIndividualWord} className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 shadow-sm transition-all"><Icon name="User" size={18} /> 下載個人成績單 (Word)</button><button onClick={handleExportClassWord} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md shadow-blue-200 transition-all"><Icon name="FileText" size={18} /> 下載班級總表 (Word)</button><button onClick={handleExportExcel} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 shadow-md shadow-green-200 transition-all"><Icon name="FileSpreadsheet" size={18} /> 下載班級總表 (Excel)</button></div></div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 opacity-70"><h4 className="text-sm font-bold text-gray-500 mb-4">預覽 (前 5 筆)</h4><div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-xs"><thead className="bg-gray-50 text-gray-700 border-b border-gray-200"><tr><th className="p-2 text-center w-12 sticky left-0 bg-gray-50">座號</th><th className="p-2 text-center w-20 sticky left-12 bg-gray-50 border-r border-gray-200">姓名</th>{sortedVisibleSubjects.slice(0,5).map(subId => <th key={subId} className="p-2 text-center text-gray-600">{ALL_SUBJECTS.find(s => s.id === subId)?.name}</th>)}{sortedVisibleSubjects.length > 5 && <th className="p-2 text-center text-gray-400">...</th>}<th className="p-2 text-center bg-emerald-50 text-emerald-800">總分</th><th className="p-2 text-center bg-emerald-50 text-emerald-800">平均</th><th className="p-2 text-center bg-yellow-50 text-yellow-800">排名</th></tr></thead><tbody className="divide-y divide-gray-100">{processedData.slice(0, 5).map((student) => <tr key={student.id}><td className="p-2 text-center sticky left-0 bg-white">{student.seatNo}</td><td className="p-2 text-center sticky left-12 bg-white border-r border-gray-100">{student.name}</td>{sortedVisibleSubjects.slice(0,5).map(subId => <td key={subId} className="p-2 text-center text-gray-600">{student.scores[subId]}</td>)}{sortedVisibleSubjects.length > 5 && <td className="p-2 text-center text-gray-400">...</td>}<td className="p-2 text-center font-bold text-emerald-700 bg-emerald-50/30">{student.total}</td><td className="p-2 text-center font-bold text-emerald-700 bg-emerald-50/30">{student.average}</td><td className="p-2 text-center font-bold text-yellow-50/30">#{student.rank}</td></tr>)}</tbody></table></div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 opacity-70"><h4 className="text-sm font-bold text-gray-500 mb-4">預覽 (前 5 筆)</h4><div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-xs"><thead className="bg-gray-50 text-gray-700 border-b border-gray-200"><tr><th className="p-2 text-center w-12 sticky left-0 bg-gray-50">座號</th><th className="p-2 text-center w-20 sticky left-12 bg-gray-50 border-r border-gray-200">姓名</th>{sortedVisibleSubjects.slice(0,5).map(subId => <th key={subId} className="p-2 text-center text-gray-600">{subjectList.find(s => s.id === subId)?.name}</th>)}{sortedVisibleSubjects.length > 5 && <th className="p-2 text-center text-gray-400">...</th>}<th className="p-2 text-center bg-emerald-50 text-emerald-800">總分</th><th className="p-2 text-center bg-emerald-50 text-emerald-800">平均</th><th className="p-2 text-center bg-yellow-50 text-yellow-800">排名</th></tr></thead><tbody className="divide-y divide-gray-100">{processedData.slice(0, 5).map((student) => <tr key={student.id}><td className="p-2 text-center sticky left-0 bg-white">{student.seatNo}</td><td className="p-2 text-center sticky left-12 bg-white border-r border-gray-100">{student.name}</td>{sortedVisibleSubjects.slice(0,5).map(subId => <td key={subId} className="p-2 text-center text-gray-600">{student.scores[subId]}</td>)}{sortedVisibleSubjects.length > 5 && <td className="p-2 text-center text-gray-400">...</td>}<td className="p-2 text-center font-bold text-emerald-700 bg-emerald-50/30">{student.total}</td><td className="p-2 text-center font-bold text-emerald-700 bg-emerald-50/30">{student.average}</td><td className="p-2 text-center font-bold text-yellow-50/30">#{student.rank}</td></tr>)}</tbody></table></div></div>
                         </div>}
                     </main>
                     <footer className="bg-emerald-800 text-emerald-100 py-6 mt-8"><div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4"><div className="text-sm font-medium">2026@奕鈞老師製作</div><a href="https://www.facebook.com/share/1K5MsceXxS/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-sm"><Icon name="Facebook" size={16} /> 追蹤我的 Facebook</a></div></footer>
-                    {showPasteModal && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"><div className="p-6 border-b border-gray-100 flex justify-between items-center"><h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Icon name="ClipboardPaste" className="text-emerald-500" /> 智慧貼上成績</h3><button onClick={() => setShowPasteModal(false)} className="text-gray-400 hover:text-gray-600">✕</button></div><div className="p-6 space-y-4"><div className="bg-amber-50 text-amber-800 p-4 rounded-lg text-sm flex gap-3"><div className="mt-1">💡</div><div><p className="font-bold mb-1">智慧識別 V10.0</p><p>直接從 Excel 複製貼上（含標題列），系統會自動對應座號、姓名與有開啟的科目。</p></div></div><textarea value={pasteInput} onChange={(e) => setPasteInput(e.target.value)} placeholder="例如：&#10;座號	姓名	國語	數學&#10;1	小明	90	80..." className="w-full h-48 p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none font-mono text-sm resize-none" /></div><div className="p-6 bg-gray-50 flex justify-end gap-3"><button onClick={() => setShowPasteModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">取消</button><button onClick={handlePasteData} disabled={!pasteInput.trim()} className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all">確認匯入</button></div></div></div>}
+                    {showPasteModal && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"><div className="p-6 border-b border-gray-100 flex justify-between items-center"><h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Icon name="ClipboardPaste" className="text-emerald-500" /> 智慧貼上成績</h3><button onClick={() => setShowPasteModal(false)} className="text-gray-400 hover:text-gray-600">✕</button></div><div className="p-6 space-y-4"><div className="bg-amber-50 text-amber-800 p-4 rounded-lg text-sm flex gap-3"><div className="mt-1">💡</div><div><p className="font-bold mb-1">智慧識別 V12.0</p><p>直接從 Excel 複製貼上（含標題列），系統會自動對應座號、姓名與有開啟的科目。</p></div></div><textarea value={pasteInput} onChange={(e) => setPasteInput(e.target.value)} placeholder="例如：&#10;座號	姓名	國語	數學&#10;1	小明	90	80..." className="w-full h-48 p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none font-mono text-sm resize-none" /></div><div className="p-6 bg-gray-50 flex justify-end gap-3"><button onClick={() => setShowPasteModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">取消</button><button onClick={handlePasteData} disabled={!pasteInput.trim()} className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all">確認匯入</button></div></div></div>}
                 </div>
             );
         }
