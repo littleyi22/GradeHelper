@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成績計算小幫手 V11.0 - 奕鈞老師</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SheetJS for Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Custom Tailwind Config -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              emerald: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b' },
+              blue: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+            }
+          }
+        }
+      }
+    </script>
+
+    <style>
+        body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #F0FDF4; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Print styles */
+        @media print {
+            .page-break { page-break-after: always; break-after: page; display: block; }
+            body { background-color: white; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- Inline Icons ---
+        const Icons = {
+            Calculator: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>,
+            Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            BarChart3: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>,
+            FileText: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>,
+            Trash2: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>,
+            ClipboardPaste: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1Z"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2M16 4h2a2 2 0 0 1 2 2v2M11 14h10"/><path d="m17 10 4 4-4 4"/></svg>,
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+            User: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+            Eye: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>,
+            PenTool: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>,
+            Check: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            FileSpreadsheet: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>,
+            Facebook: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>,
+            Radar: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12V2"/><path d="m19 5-7 7-7-7"/><path d="M2 12h20"/><path d="m5 19 7-7 7 7"/><circle cx="12" cy="12" r="10"/></svg>
+        };
+
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const SvgComponent = Icons[name];
+            if (!SvgComponent) return null;
+            return (
+                <span className={`inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
+                    <SvgComponent />
+                </span>
+            );
+        };
+
+        // --- Constants ---
+        const SUBJECT_ORDER = [
+            'chi', 'lit', 'eng', 'mat', 'soc', 'his', 'geo', 'civ', 
+            'sci', 'bio', 'phy_chem', 'earth', 'phy', 'chem', 
+            'comp', 'art', 'vis_art', 'perf_art', 'hlt', 'health', 'pe', 'act', 'counsel', 'tec', 'living_tech', 'info_tech', 'local'
+        ];
+
+        const ALL_SUBJECTS_MAP = {
+            chi: '國語', lit: '國文', eng: '英語', mat: '數學', 
+            soc: '社會', his: '歷史', geo: '地理', civ: '公民', 
+            sci: '自然', bio: '生物', phy_chem: '理化', earth: '地科', 
+            phy: '物理', chem: '化學', comp: '作文', art: '藝術', vis_art: '視覺藝術', perf_art: '表演藝術',
+            hlt: '健體', health: '健康', pe: '體育', act: '綜合', counsel: '輔導', tec: '科技', living_tech: '生科', info_tech: '資訊', local: '本土語'
+        };
+
+        const SUBJECT_COLORS = {
+            chi: { ui: 'rose', hex: '#f43f5e' },
+            lit: { ui: 'red', hex: '#ef4444' },
+            eng: { ui: 'blue', hex: '#3b82f6' },
+            mat: { ui: 'emerald', hex: '#10b981' },
+            soc: { ui: 'amber', hex: '#f59e0b' },
+            his: { ui: 'orange', hex: '#f97316' },
+            geo: { ui: 'yellow', hex: '#eab308' },
+            civ: { ui: 'lime', hex: '#84cc16' },
+            sci: { ui: 'violet', hex: '#8b5cf6' },
+            bio: { ui: 'green', hex: '#22c55e' },
+            phy_chem: { ui: 'indigo', hex: '#6366f1' },
+            earth: { ui: 'cyan', hex: '#06b6d4' },
+            phy: { ui: 'sky', hex: '#0ea5e9' },
+            chem: { ui: 'fuchsia', hex: '#d946ef' },
+            comp: { ui: 'slate', hex: '#64748b' },
+            art: { ui: 'pink', hex: '#ec4899' },
+            vis_art: { ui: 'pink', hex: '#f472b6' },
+            perf_art: { ui: 'fuchsia', hex: '#c026d3' },
+            hlt: { ui: 'teal', hex: '#14b8a6' },
+            health: { ui: 'teal', hex: '#2dd4bf' },
+            pe: { ui: 'green', hex: '#16a34a' },
+            act: { ui: 'purple', hex: '#a855f7' },
+            counsel: { ui: 'purple', hex: '#9333ea' },
+            tec: { ui: 'zinc', hex: '#71717a' },
+            living_tech: { ui: 'slate', hex: '#475569' },
+            info_tech: { ui: 'sky', hex: '#0284c7' },
+            local: { ui: 'stone', hex: '#78716c' },
+        };
+
+        const ALL_SUBJECTS = SUBJECT_ORDER.map(id => ({ id, name: ALL_SUBJECTS_MAP[id] }));
+
+        const TABS = { INPUT: 'input', ANALYSIS: 'analysis', REPORTS: 'reports' };
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+
+        const calculateStandardDeviation = (scores, avg) => {
+            if (scores.length === 0) return 0;
+            const squareDiffs = scores.map(score => Math.pow(score - avg, 2));
+            const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / scores.length;
+            return Math.sqrt(avgSquareDiff).toFixed(1);
+        };
+
+        const calculateMedian = (scores) => {
+            if (scores.length === 0) return 0;
+            const sorted = [...scores].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 !== 0 ? sorted[mid] : ((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1);
+        };
+
+        const generateRadarDataURL = (studentScores, subjects) => {
+            // V10.0 Fix: Smaller size (250) and 0.5 quality to prevent Word crash when only image is in cell
+            const size = 250; 
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const radius = size * 0.4; 
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+
+            const radarSubjects = subjects.filter(s => s.id !== 'comp');
+            const count = radarSubjects.length;
+            if (count < 3) return null;
+
+            const angleStep = (Math.PI * 2) / count;
+            
+            // Grid
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            for (let level = 1; level <= 5; level++) {
+                ctx.beginPath();
+                for (let i = 0; i < count; i++) {
+                    const angle = i * angleStep - Math.PI / 2; 
+                    const r = (radius / 5) * level;
+                    const x = centerX + Math.cos(angle) * r;
+                    const y = centerY + Math.sin(angle) * r;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            // Axes
+            ctx.strokeStyle = '#d1d5db';
+            for (let i = 0; i < count; i++) {
+                const angle = i * angleStep - Math.PI / 2;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius);
+                ctx.stroke();
+
+                const labelR = radius + 20;
+                const lx = centerX + Math.cos(angle) * labelR;
+                const ly = centerY + Math.sin(angle) * labelR;
+                ctx.fillStyle = '#374151';
+                ctx.font = 'bold 11px sans-serif'; 
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(radarSubjects[i].name, lx, ly);
+            }
+
+            // Data
+            ctx.beginPath();
+            radarSubjects.forEach((sub, i) => {
+                const angle = i * angleStep - Math.PI / 2;
+                const score = parseFloat(studentScores[sub.id]) || 0;
+                const r = (Math.min(score, 100) / 100) * radius; 
+                const x = centerX + Math.cos(angle) * r;
+                const y = centerY + Math.sin(angle) * r;
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.4)';
+            ctx.fill();
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // V10.0: Return JPEG 0.5 for max compatibility
+            return canvas.toDataURL('image/jpeg', 0.5); 
+        };
+
+        // --- Main App Component ---
+        function App() {
+            const [activeTab, setActiveTab] = useState(TABS.INPUT);
+            const [students, setStudents] = useState([]);
+            
+            const [visibleSubjectIds, setVisibleSubjectIds] = useState(['chi', 'eng', 'mat', 'soc', 'sci']);
+            const [scoringSubjectIds, setScoringSubjectIds] = useState(['chi', 'eng', 'mat', 'soc', 'sci']);
+            const [compMode, setCompMode] = useState('100');
+
+            const [reportTitle, setReportTitle] = useState('112學年度 成績計算表');
+            const [reportSubtitle, setReportSubtitle] = useState('');
+            const [reportConfig, setReportConfig] = useState({
+                showTotal: true,
+                showAvg: true,
+                showRank: true,
+                incMaxMin: true,
+                incAvg: true,
+                incStdDev: true,
+                incMedian: true,
+                incDist10: true,
+                incDist5: false,
+                incCompDist: true,
+                incRadar: true,
+            });
+
+            const [pasteInput, setPasteInput] = useState('');
+            const [showPasteModal, setShowPasteModal] = useState(false);
+            const [confirmClear, setConfirmClear] = useState(false); // Safety button state
+            const fileInputRef = useRef(null);
+
+            // XLSX loading check
+            useEffect(() => {
+                const script = document.createElement('script');
+                script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+                script.async = true;
+                document.body.appendChild(script);
+                return () => { try { document.body.removeChild(script); } catch (e) {} }
+            }, []);
+
+            const sortedVisibleSubjects = useMemo(() => SUBJECT_ORDER.filter(id => visibleSubjectIds.includes(id)), [visibleSubjectIds]);
+
+            const processedData = useMemo(() => {
+                let data = students.map(student => {
+                    let total = 0, count = 0;
+                    scoringSubjectIds.forEach(subId => {
+                        const score = parseFloat(student.scores[subId]);
+                        if (!isNaN(score)) { total += score; count++; }
+                    });
+                    const avg = count > 0 ? (total / count).toFixed(1) : 0;
+                    return { ...student, total, average: parseFloat(avg), count };
+                });
+                data.sort((a, b) => b.total - a.total);
+                let currentRank = 1;
+                for (let i = 0; i < data.length; i++) {
+                    if (i > 0 && data[i].total < data[i-1].total) currentRank = i + 1;
+                    data[i].rank = currentRank;
+                }
+                data.sort((a, b) => (parseInt(a.seatNo) || 999) - (parseInt(b.seatNo) || 999));
+                return data;
+            }, [students, scoringSubjectIds]);
+
+            const statistics = useMemo(() => {
+                const stats = {};
+                sortedVisibleSubjects.forEach(subId => {
+                    const scores = processedData.map(s => parseFloat(s.scores[subId])).filter(s => !isNaN(s));
+                    const max = scores.length ? Math.max(...scores) : 0;
+                    const min = scores.length ? Math.min(...scores) : 0;
+                    const sum = scores.reduce((a, b) => a + b, 0);
+                    const avg = scores.length ? (sum / scores.length).toFixed(1) : 0;
+                    const stdDev = calculateStandardDeviation(scores, avg);
+                    const median = calculateMedian(scores);
+                    
+                    let distLabels = [], distCounts = [];
+                    if (subId === 'comp' && compMode === '6') {
+                        distLabels = ['6級分', '5級分', '4級分', '3級分', '2級分', '1級分', '0級分'];
+                        const counts = new Array(7).fill(0);
+                        scores.forEach(s => { let val = Math.round(s); if (val >= 0 && val <= 6) counts[val]++; });
+                        distCounts = counts.reverse();
+                    } else {
+                        const maxScore = (subId === 'comp' && compMode === '50') ? 50 : 100;
+                        const bucketCount = Math.floor(maxScore / 10) + 1;
+                        const counts = new Array(bucketCount).fill(0);
+                        scores.forEach(score => {
+                            let idx = Math.floor(score / 10);
+                            if (idx >= bucketCount) idx = bucketCount - 1;
+                            counts[idx]++;
+                        });
+                        const labels = [];
+                        for(let i=0; i<bucketCount-1; i++) labels.push(`${i*10}-${i*10+9}`);
+                        labels.push(`${(bucketCount-1)*10}`);
+                        distLabels = labels.reverse();
+                        distCounts = counts.reverse();
+                    }
+
+                    let dist5Labels = [], dist5Counts = [];
+                    if (subId !== 'comp' || compMode !== '6') {
+                        const maxScore = (subId === 'comp' && compMode === '50') ? 50 : 100;
+                        const bucketCount5 = Math.floor(maxScore / 5) + 1;
+                        const counts5 = new Array(bucketCount5).fill(0);
+                        scores.forEach(score => {
+                            let idx = Math.floor(score / 5);
+                            if (idx >= bucketCount5) idx = bucketCount5 - 1;
+                            counts5[idx]++;
+                        });
+                        for(let i=0; i<bucketCount5-1; i++) dist5Labels.push(`${i*5}-${i*5+4}`);
+                        dist5Labels.push(`${(bucketCount5-1)*5}`);
+                        dist5Labels = dist5Labels.reverse();
+                        dist5Counts = counts5.reverse();
+                    }
+                    stats[subId] = { max, min, avg, stdDev, median, count: scores.length, distLabels, distCounts, dist5Labels, dist5Counts, isSpecial: subId === 'comp' && compMode === '6' };
+                });
+                return stats;
+            }, [processedData, sortedVisibleSubjects, compMode]);
+
+            // --- Handlers ---
+            const handleToggleVisible = (id) => {
+                if (visibleSubjectIds.includes(id)) { setVisibleSubjectIds(prev => prev.filter(s => s !== id)); setScoringSubjectIds(prev => prev.filter(s => s !== id)); } 
+                else setVisibleSubjectIds(prev => [...prev, id]);
+            };
+            const handleToggleScoring = (id) => {
+                if (scoringSubjectIds.includes(id)) setScoringSubjectIds(prev => prev.filter(s => s !== id));
+                else { setScoringSubjectIds(prev => [...prev, id]); if (!visibleSubjectIds.includes(id)) setVisibleSubjectIds(prev => [...prev, id]); }
+            };
+            const handleMasterToggle = (id) => {
+                if (visibleSubjectIds.includes(id) && scoringSubjectIds.includes(id)) { setVisibleSubjectIds(prev => prev.filter(s => s !== id)); setScoringSubjectIds(prev => prev.filter(s => s !== id)); } 
+                else { if (!visibleSubjectIds.includes(id)) setVisibleSubjectIds(prev => [...prev, id]); if (!scoringSubjectIds.includes(id)) setScoringSubjectIds(prev => [...prev, id]); }
+            };
+
+            const handleAddStudent = () => setStudents([...students, { id: generateId(), seatNo: '', name: '', scores: {} }]);
+            const handleUpdateStudent = (id, field, value) => setStudents(students.map(s => s.id === id ? { ...s, [field]: value } : s));
+            const handleUpdateScore = (studentId, subjectId, value) => setStudents(students.map(s => { if (s.id !== studentId) return s; return { ...s, scores: { ...s.scores, [subjectId]: value } }; }));
+            const handleRemoveStudent = (id) => setStudents(students.filter(s => s.id !== id));
+            const handleClearData = () => { if (confirmClear) { setStudents([]); setConfirmClear(false); } else { setConfirmClear(true); setTimeout(() => setConfirmClear(false), 3000); } };
+
+            const processImportRows = (rows) => {
+                if (rows.length === 0) return [];
+                const newStudents = [];
+                let headerMap = null, startRowIndex = 0;
+                for(let i=0; i < Math.min(rows.length, 5); i++) {
+                    const rowStr = rows[i].join('');
+                    if (rowStr.includes('座號') || rowStr.includes('姓名')) {
+                        headerMap = {};
+                        rows[i].forEach((cell, cellIdx) => {
+                            const val = String(cell || '').trim();
+                            if (val === '座號') headerMap[cellIdx] = 'seatNo';
+                            else if (val === '姓名') headerMap[cellIdx] = 'name';
+                            else { const sub = ALL_SUBJECTS.find(s => s.name === val); if (sub) headerMap[cellIdx] = sub.id; }
+                        });
+                        startRowIndex = i + 1; break;
+                    }
+                }
+                for (let i = startRowIndex; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (row.length < 1) continue;
+                    let seatNo = '', name = '', scores = {};
+                    if (headerMap) {
+                        row.forEach((cell, cellIdx) => {
+                            const val = String(cell || '').trim();
+                            if (headerMap[cellIdx] === 'seatNo') seatNo = val;
+                            else if (headerMap[cellIdx] === 'name') name = val;
+                            else if (headerMap[cellIdx]) scores[headerMap[cellIdx]] = val;
+                        });
+                    } else {
+                        seatNo = String(row[0] || '').trim();
+                        name = String(row[1] || '').trim();
+                        sortedVisibleSubjects.forEach((subId, idx) => { const val = String(row[idx + 2] || '').trim(); if (val) scores[subId] = val; });
+                    }
+                    if (seatNo) newStudents.push({ id: generateId(), seatNo, name, scores });
+                }
+                return newStudents;
+            };
+
+            const handlePasteData = () => {
+                if (!pasteInput.trim()) return;
+                const rows = pasteInput.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').map(r => r.split(/[\t,]/));
+                const added = processImportRows(rows);
+                if (added.length > 0) { setStudents(prev => [...prev, ...added]); setPasteInput(''); setShowPasteModal(false); }
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.name.match(/\.(xlsx|xls)$/i)) {
+                    if (window.XLSX) {
+                        const reader = new FileReader();
+                        reader.onload = (evt) => {
+                            try {
+                                const data = new Uint8Array(evt.target.result);
+                                const workbook = window.XLSX.read(data, {type: 'array'});
+                                const jsonData = window.XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
+                                const added = processImportRows(jsonData);
+                                setStudents(prev => [...prev, ...added]);
+                                if (fileInputRef.current) fileInputRef.current.value = '';
+                            } catch(err) { alert('讀取 Excel 失敗'); }
+                        };
+                        reader.readAsArrayBuffer(file);
+                    } else alert('Excel 模組載入中，請稍候...');
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        const rows = evt.target.result.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').map(r => r.split(/[\t,]/));
+                        const added = processImportRows(rows);
+                        setStudents(prev => [...prev, ...added]);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                    };
+                    reader.readAsText(file);
+                }
+            };
+
+            const handleDownloadTemplate = () => {
+                const headers = ['座號', '姓名', ...sortedVisibleSubjects.map(id => ALL_SUBJECTS.find(s=>s.id===id).name)];
+                const csv = '\uFEFF' + headers.join(',') + '\n1,王小明,80,90,85,,\n2,李大華,75,88,92,,';
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = '成績匯入範例.csv';
+                link.click();
+            };
+
+            const getStatsTableHTML = (includeTitle = true) => {
+                let html = '';
+                if (sortedVisibleSubjects.length === 0) return '';
+                if (reportConfig.incMaxMin || reportConfig.incAvg || reportConfig.incStdDev || reportConfig.incMedian) {
+                    if(includeTitle) html += `<h3>各科統計數值</h3>`;
+                    html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">項目</th>${sortedVisibleSubjects.map(id => `<th style="border:1px solid #333; padding:5px;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
+                    const rows = [
+                        { key: 'incAvg', label: '平均', val: 'avg' }, { key: 'incMaxMin', label: '最高', val: 'max' }, { key: 'incMaxMin', label: '最低', val: 'min' }, { key: 'incMedian', label: '中位數', val: 'median' }, { key: 'incStdDev', label: '標準差', val: 'stdDev' }
+                    ];
+                    rows.forEach(r => { if (reportConfig[r.key]) { html += `<tr><td style="border:1px solid #333; padding:5px; font-weight:bold;">${r.label}</td>`; sortedVisibleSubjects.forEach(id => { html += `<td style="border:1px solid #333; padding:5px; text-align:center;">${statistics[id]?.[r.val] || '-'}</td>`; }); html += `</tr>`; } });
+                    html += `</table>`;
+                }
+                
+                if (reportConfig.incDist10) {
+                    const nonCompSubjects = sortedVisibleSubjects.filter(id => id !== 'comp');
+                    if (nonCompSubjects.length > 0) {
+                        const maxLabelsSub = nonCompSubjects.reduce((prev, curr) => (statistics[curr]?.distLabels.length > statistics[prev]?.distLabels.length) ? curr : prev, nonCompSubjects[0]);
+                        const labels = statistics[maxLabelsSub]?.distLabels || [];
+                        if(includeTitle) html += `<h3>十分級距表 (人數)</h3>`;
+                        html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">級距</th>${nonCompSubjects.map(id => `<th style="border:1px solid #333; padding:5px;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
+                        labels.forEach((label, idx) => {
+                            html += `<tr><td style="border:1px solid #333; padding:5px;">${label}</td>`;
+                            nonCompSubjects.forEach(id => html += `<td style="border:1px solid #333; padding:5px; text-align:center;">${statistics[id]?.distCounts[idx] || ''}</td>`);
+                            html += `</tr>`;
+                        });
+                        html += `</table>`;
+                    }
+                }
+
+                if (reportConfig.incCompDist && sortedVisibleSubjects.includes('comp')) {
+                    if(includeTitle) html += `<h3>作文級距表 (${compMode==='6'?'6級分':'分數制'})</h3>`;
+                    html += `<table style="border-collapse: collapse; width: 300px; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">級分/數</th><th style="border:1px solid #333; padding:5px;">人數</th></tr>`;
+                    statistics['comp'].distLabels.forEach((label, idx) => {
+                        html += `<tr><td style="border:1px solid #333; padding:5px; text-align:center;">${label}</td><td style="border:1px solid #333; padding:5px; text-align:center;">${statistics['comp'].distCounts[idx]}</td></tr>`;
+                    });
+                    html += `</table>`;
+                }
+
+                if (reportConfig.incDist5) {
+                    const subjects5 = sortedVisibleSubjects.filter(id => id !== 'comp' || compMode !== '6');
+                    if (subjects5.length > 0) {
+                        const maxLabelsSub5 = subjects5.reduce((prev, curr) => (statistics[curr]?.dist5Labels.length > statistics[prev]?.dist5Labels.length) ? curr : prev, subjects5[0]);
+                        const labels5 = statistics[maxLabelsSub5]?.dist5Labels || [];
+                        if(includeTitle) html += `<h3>五分級距表 (人數)</h3>`;
+                        html += `<table style="border-collapse: collapse; width: 100%; margin-bottom: 20px;"><tr style="background:#eee;"><th style="border:1px solid #333; padding:5px;">級距</th>${subjects5.map(id => `<th style="border:1px solid #333; padding:5px;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}</tr>`;
+                        labels5.forEach((label, idx) => {
+                            html += `<tr><td style="border:1px solid #333; padding:5px;">${label}</td>`;
+                            subjects5.forEach(id => html += `<td style="border:1px solid #333; padding:5px; text-align:center;">${statistics[id]?.dist5Counts[idx] || ''}</td>`);
+                            html += `</tr>`;
+                        });
+                        html += `</table>`;
+                    }
+                }
+                return html;
+            };
+
+            const downloadDoc = (html, filename) => {
+                const blob = new Blob([html], { type: 'application/msword' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+            };
+
+            const handleExportClassWord = () => {
+                const headerCells = `<th style="border:1px solid black; background:#eee;">座號</th><th style="border:1px solid black; background:#eee;">姓名</th>${sortedVisibleSubjects.map(id => `<th style="border:1px solid black; background:#eee;">${ALL_SUBJECTS.find(s=>s.id===id).name}</th>`).join('')}${reportConfig.showTotal ? '<th style="border:1px solid black; background:#eee;">總分</th>' : ''}${reportConfig.showAvg ? '<th style="border:1px solid black; background:#eee;">平均</th>' : ''}${reportConfig.showRank ? '<th style="border:1px solid black; background:#eee;">排名</th>' : ''}`;
+                const rows = processedData.map(s => `<tr><td style="border:1px solid black; text-align:center;">${s.seatNo}</td><td style="border:1px solid black; text-align:center;">${s.name}</td>${sortedVisibleSubjects.map(id => `<td style="border:1px solid black; text-align:center;">${s.scores[id] || ''}</td>`).join('')}${reportConfig.showTotal ? `<td style="border:1px solid black; text-align:center;">${s.total}</td>` : ''}${reportConfig.showAvg ? `<td style="border:1px solid black; text-align:center;">${s.average}</td>` : ''}${reportConfig.showRank ? `<td style="border:1px solid black; text-align:center;">${s.rank}</td>` : ''}</tr>`).join('');
+                const statsHTML = getStatsTableHTML();
+                const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>${reportTitle}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]--><style>@page { size: A4; margin: 1.27cm; } body { font-family: 'BiauKai', sans-serif; }</style></head><body><h1 style="text-align:center; margin-bottom: 5px;">${reportTitle}</h1>${reportSubtitle ? `<h3 style="text-align:center; margin-top: 0;">${reportSubtitle}</h3>` : ''}<h2 style="text-align:center">班級成績一覽表</h2><table style="width:100%; border-collapse: collapse; font-family: 'BiauKai', sans-serif; margin-bottom: 30px;"><tr>${headerCells}</tr>${rows}</table><br/><hr/><br/>${statsHTML}</body></html>`;
+                downloadDoc(html, `${reportTitle}.doc`);
+            };
+
+            const handleExportExcel = () => {
+                let csvContent = "\uFEFF"; 
+                csvContent += `${reportTitle}\n${reportSubtitle ? reportSubtitle + '\n' : ''}`;
+                const headers = ['座號', '姓名', ...sortedVisibleSubjects.map(id => ALL_SUBJECTS.find(s => s.id === id)?.name)];
+                if (reportConfig.showTotal) headers.push('總分');
+                if (reportConfig.showAvg) headers.push('平均');
+                if (reportConfig.showRank) headers.push('排名');
+                csvContent += headers.join(',') + '\n';
+                processedData.forEach(s => { const row = [s.seatNo, s.name, ...sortedVisibleSubjects.map(id => s.scores[id]), reportConfig.showTotal ? s.total : null, reportConfig.showAvg ? s.average : null, reportConfig.showRank ? s.rank : null].filter(i => i !== null); csvContent += row.join(',') + '\n'; });
+                csvContent += '\n\n統計分析\n科目,最高,最低,平均,標準差,中位數\n';
+                sortedVisibleSubjects.forEach(id => { const stat = statistics[id]; if(stat) csvContent += [ALL_SUBJECTS.find(s=>s.id===id).name, stat.max, stat.min, stat.avg, stat.stdDev, stat.median].join(',') + '\n'; });
+                if (reportConfig.incDist10) { csvContent += '\n十分級距 (人數)\n'; const nonComp = sortedVisibleSubjects.filter(id => id!=='comp'); if(nonComp.length){ nonComp.forEach(id => { const stat = statistics[id]; csvContent += `${ALL_SUBJECTS.find(s=>s.id===id).name},` + stat.distLabels.join(',') + '\n人數,' + stat.distCounts.join(',') + '\n'; }); } }
+                if (reportConfig.incCompDist && sortedVisibleSubjects.includes('comp')) { const stat = statistics['comp']; csvContent += `\n作文 (${compMode}),` + stat.distLabels.join(',') + '\n人數,' + stat.distCounts.join(',') + '\n'; }
+                if (reportConfig.incDist5) { csvContent += '\n五分級距 (人數)\n'; sortedVisibleSubjects.forEach(id => { const stat = statistics[id]; if (!stat.isSpecial && stat.dist5Labels.length > 0) csvContent += `${ALL_SUBJECTS.find(s=>s.id===id).name},` + stat.dist5Labels.join(',') + '\n人數,' + stat.dist5Counts.join(',') + '\n'; }); }
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${reportTitle}.csv`;
+                link.click();
+            };
+
+            const handleExportIndividualWord = () => {
+                const hasStats = reportConfig.incRadar || reportConfig.incDist10 || reportConfig.incDist5 || reportConfig.incCompDist;
+                
+                const getCompactStatsTable = () => {
+                    let h = `<table style="width:100%; border-collapse:collapse; font-size:9pt; margin-top:5px;">`;
+                    if (reportConfig.incDist10) {
+                        const subjects = sortedVisibleSubjects.filter(id => id !== 'comp');
+                        if (subjects.length > 0) {
+                            h += `<tr style="background:#eee;"><td style="border:1px solid #999; padding:2px;">級距</td>`;
+                            subjects.forEach(id => h += `<td style="border:1px solid #999; padding:2px; text-align:center;">${ALL_SUBJECTS.find(s=>s.id===id).name}</td>`);
+                            h += `</tr>`;
+                            const labels = statistics[subjects[0]]?.distLabels || [];
+                            labels.forEach((lab, idx) => {
+                                h += `<tr><td style="border:1px solid #999; padding:2px;">${lab}</td>`;
+                                subjects.forEach(id => h += `<td style="border:1px solid #999; padding:2px; text-align:center;">${statistics[id]?.distCounts[idx]}</td>`);
+                                h += `</tr>`;
+                            });
+                        }
+                    }
+                    if (reportConfig.incCompDist && sortedVisibleSubjects.includes('comp')) {
+                        h += `<tr><td colspan="100" style="padding:4px;"></td></tr><tr style="background:#eee;"><td colspan="100" style="border:1px solid #999; padding:2px; font-weight:bold; text-align:center;">作文</td></tr>`;
+                        const stat = statistics['comp'];
+                        stat.distLabels.forEach((lab, idx) => h += `<tr><td style="border:1px solid #999; padding:2px;">${lab}</td><td colspan="100" style="border:1px solid #999; padding:2px; text-align:center;">${stat.distCounts[idx]}人</td></tr>`);
+                    }
+                    h += `</table>`;
+                    return h;
+                };
+
+                const cards = processedData.map(s => {
+                    let radarImg = '';
+                    if (reportConfig.incRadar) {
+                        // V10.0 Fix: Ensure JPEG format for Word compatibility
+                        const dataUrl = generateRadarDataURL(s.scores, sortedVisibleSubjects.map(id=>ALL_SUBJECTS.find(sub=>sub.id===id)));
+                        if (dataUrl) radarImg = `<img src="${dataUrl}" width="250" height="250" style="width:250px; height:250px; display:block; margin:0 auto;" />`;
+                    }
+
+                    if (!hasStats) {
+                        // Simple Layout
+                        return `<div class="page-break" style="page-break-after: always; padding: 20px; font-family: 'BiauKai', sans-serif;">
+                            <h2 style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 5px;">${reportTitle} - 個人成績單</h2>
+                            ${reportSubtitle ? `<h4 style="text-align:center; margin-top:0;">${reportSubtitle}</h4>` : ''}
+                            <div style="margin: 20px 0; font-size: 1.2em; text-align:center;"><p><strong>座號：</strong>${s.seatNo} &nbsp;&nbsp; <strong>姓名：</strong>${s.name}</p></div>
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                <tr style="background: #f0f0f0;"><th style="border: 1px solid #333; padding: 8px;">科目</th><th style="border: 1px solid #333; padding: 8px;">成績</th></tr>
+                                ${sortedVisibleSubjects.map(id => `<tr><td style="border: 1px solid #333; padding: 8px; text-align: center;">${ALL_SUBJECTS.find(sub=>sub.id===id).name}</td><td style="border: 1px solid #333; padding: 8px; text-align: center; font-weight: bold;">${s.scores[id] || '-'}</td></tr>`).join('')}
+                            </table>
+                            <div style="border: 2px solid #666; padding: 15px; border-radius: 8px; text-align:center;"><p><strong>總分：</strong> ${s.total} &nbsp; <strong>平均：</strong> ${s.average} &nbsp; <strong>排名：</strong> ${s.rank}</p></div>
+                            <div style="margin-top: 40px; text-align: right;"><p>導師簽章：___________ &nbsp; 家長簽章：___________</p></div>
+                        </div>`;
+                    }
+
+                    // Complex Layout (Left: Chart, Right: Grades)
+                    // V10.0 Fix: Added &nbsp; after radarImg div to prevent Word crash when only image is present
+                    return `<div class="page-break" style="page-break-after: always; padding: 10px; font-family: 'BiauKai', sans-serif;">
+                        <h2 style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 5px;">${reportTitle} - 個人成績單</h2>
+                        ${reportSubtitle ? `<h4 style="text-align:center; margin-top:0;">${reportSubtitle}</h4>` : ''}
+                        <div style="margin: 10px 0; font-size: 1.1em; text-align:center;"><strong>座號：</strong>${s.seatNo} &nbsp;&nbsp; <strong>姓名：</strong>${s.name} &nbsp;&nbsp; <strong>總分：</strong>${s.total} &nbsp;&nbsp; <strong>平均：</strong>${s.average} &nbsp;&nbsp; <strong>排名：</strong>${s.rank}</div>
+                        <table style="width: 100%; border-spacing: 0; margin-bottom: 5px;"><tr>
+                            <td style="width: 55%; vertical-align: top; padding-right: 15px;">
+                                ${radarImg ? `<h3 style="border-bottom:1px solid #ccc; font-size:12pt; text-align:center;">能力雷達圖</h3><div style="text-align:center; margin-bottom:5px;">${radarImg}</div><p style="font-size:1pt; color:white;">&nbsp;</p>` : ''}
+                                ${(reportConfig.incDist10 || reportConfig.incDist5 || reportConfig.incCompDist) ? `<h3 style="border-bottom:1px solid #ccc; font-size:12pt;">全班落點分析</h3>${getCompactStatsTable()}` : ''}
+                            </td>
+                            <td style="width: 45%; vertical-align: top; border-left: 1px solid #eee; padding-left: 15px;">
+                                <h3 style="border-bottom:1px solid #ccc; font-size:12pt;">成績列表</h3>
+                                <table style="width: 100%; border-collapse: collapse; font-size:11pt;">
+                                    <tr style="background: #f0f0f0;"><th style="border: 1px solid #333; padding: 4px;">科目</th><th style="border: 1px solid #333; padding: 4px;">成績</th></tr>
+                                    ${sortedVisibleSubjects.map(id => `<tr><td style="border: 1px solid #333; padding: 4px; text-align: center;">${ALL_SUBJECTS.find(sub=>sub.id===id).name}</td><td style="border: 1px solid #333; padding: 4px; text-align: center; font-weight: bold;">${s.scores[id] || '-'}</td></tr>`).join('')}
+                                </table>
+                                <div style="margin-top: 50px;"><p style="margin-bottom:20px;">導師簽章：___________</p><p>家長簽章：___________</p></div>
+                            </td>
+                        </tr></table>
+                    </div>`;
+                }).join('');
+                
+                // V10.0 Fix: Improved Word Headers and Page Breaks
+                const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head><meta charset='utf-8'><title>個人成績單</title>
+                <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+                <style>@page { size: A4; margin: 1.27cm; } body { font-family: 'BiauKai', 'Microsoft JhengHei', sans-serif; } .page-break { page-break-after: always; break-after: page; }</style>
+                </head><body>${cards}</body></html>`;
+                downloadDoc(html, `${reportTitle}_個人.doc`);
+            };
+
+            // --- Render ---
+            return (
+                <div className="min-h-screen bg-[#F0FDF4] font-sans text-gray-800 flex flex-col">
+                    <header className="bg-white border-b border-emerald-100 sticky top-0 z-40 shadow-sm flex-none">
+                        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl flex items-center justify-center text-white shadow-emerald-200 shadow-lg"><Icon name="Calculator" size={24} /></div><h1 className="text-xl font-bold text-gray-800 tracking-tight">成績計算小幫手 V11.0</h1></div>
+                            <div className="text-sm text-gray-500 hidden sm:block">奕鈞老師</div>
+                        </div>
+                    </header>
+                    <main className="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
+                        <div className="flex space-x-1 bg-white p-1 rounded-xl shadow-sm border border-emerald-100 mb-8 max-w-2xl mx-auto">
+                            {[{ id: TABS.INPUT, icon: 'Users', label: '設定與輸入' }, { id: TABS.ANALYSIS, icon: 'BarChart3', label: '統計分析' }, { id: TABS.REPORTS, icon: 'FileText', label: '報表下載' }].map(tab => (<button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-emerald-100 text-emerald-800 shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}><Icon name={tab.icon} size={18} /> {tab.label}</button>))}
+                        </div>
+                        {activeTab === TABS.INPUT && <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 mb-6">
+                                <div className="flex items-center gap-4 mb-4"><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Icon name="Settings" size={20} /> 第一步：設定計分科目</h3><div className="flex items-center gap-3 text-xs bg-emerald-50/50 px-3 py-1.5 rounded-full border border-emerald-100"><span className="text-gray-500 font-bold">圖示說明：</span><div className="flex items-center gap-1"><div className="w-4 h-4 bg-rose-400 rounded flex items-center justify-center text-white"><Icon name="Eye" size={10}/></div><span className="text-gray-600">顯示於表格</span></div><div className="flex items-center gap-1"><div className="w-4 h-4 bg-blue-500 rounded flex items-center justify-center text-white"><Icon name="Calculator" size={10}/></div><span className="text-gray-600">列入總分計算</span></div><div className="flex items-center gap-1"><div className="w-4 h-4 bg-emerald-600 rounded flex items-center justify-center text-white"><Icon name="Check" size={10} className="stroke-[3]"/></div><span className="text-gray-600">全選</span></div></div></div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">{ALL_SUBJECTS.map(sub => { const isVisible = visibleSubjectIds.includes(sub.id), isScoring = scoringSubjectIds.includes(sub.id), isBoth = isVisible && isScoring; return <div key={sub.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isVisible || isScoring ? 'bg-blue-50 border-blue-200' : 'bg-gray-50/50 border-gray-200 hover:border-emerald-300'}`}><div className="flex items-center gap-2 cursor-pointer" onClick={() => handleMasterToggle(sub.id)}><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors shadow-sm ${isBoth ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-gray-300'}`}>{isBoth && <Icon name="Check" size={14} className="stroke-[3]" />}</div><span className="font-bold text-gray-700">{sub.name}</span></div><div className="flex gap-2"><label className="cursor-pointer flex items-center"><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isVisible ? 'bg-rose-400 border-rose-400 text-white' : 'bg-white border-rose-200 text-rose-200'}`} title="顯示於表格"><Icon name="Eye" size={12}/></div><input type="checkbox" className="hidden" checked={isVisible} onChange={() => handleToggleVisible(sub.id)} /></label><label className="cursor-pointer flex items-center"><div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isScoring ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white border-blue-200 text-blue-200'}`} title="列入總分計算"><Icon name="Calculator" size={12}/></div><input type="checkbox" className="hidden" checked={isScoring} onChange={() => handleToggleScoring(sub.id)} /></label></div></div>; })}</div>
+                            </div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100"><div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4"><div><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Icon name="Users" size={20} /> 學生名單與成績輸入</h3><p className="text-xs text-gray-500 mt-2">✨ 創作者保證所有資料僅在本機瀏覽器運作，不會上傳網路。</p></div><div className="flex flex-wrap gap-2"><div className="relative"><input type="file" ref={fileInputRef} accept=".csv,.txt,.xlsx,.xls" onChange={handleFileUpload} className="hidden" /><button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"><Icon name="Upload" size={16} /> 匯入 Excel/CSV</button></div><button onClick={() => setShowPasteModal(true)} className="flex items-center gap-2 px-3 py-2 bg-teal-100 text-teal-700 rounded-lg hover:bg-teal-200 transition-colors text-sm font-medium"><Icon name="ClipboardPaste" size={16} /> 貼上</button><button onClick={handleClearData} className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm font-medium ${confirmClear ? 'bg-red-600 text-white animate-pulse' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}><Icon name="Trash2" size={16} /> {confirmClear ? '確定刪除？' : '清空'}</button><button onClick={handleAddStudent} className="flex items-center gap-2 px-3 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-md transition-colors text-sm font-medium"><Icon name="Plus" size={16} /> 新增</button><button onClick={handleDownloadTemplate} className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium ml-2">下載匯入範例</button></div></div><div className="overflow-x-auto rounded-xl border border-emerald-100 max-h-[600px]"><table className="w-full text-sm relative"><thead className="sticky top-0 z-10"><tr className="bg-emerald-50 text-emerald-900 shadow-sm"><th className="p-3 text-left w-20 bg-emerald-50">座號</th><th className="p-3 text-left w-28 bg-emerald-50">姓名</th>{sortedVisibleSubjects.map(subId => <th key={subId} className="p-3 text-center min-w-[80px] bg-emerald-50">{ALL_SUBJECTS.find(s => s.id === subId)?.name}{!scoringSubjectIds.includes(subId) && <span className="block text-[10px] text-gray-400 scale-90">(不計分)</span>}</th>)}<th className="p-3 w-16 bg-emerald-50">操作</th></tr></thead><tbody className="divide-y divide-emerald-50">{students.length === 0 ? <tr><td colSpan={100} className="p-8 text-center text-gray-400">尚無資料</td></tr> : students.map((student) => <tr key={student.id} className="hover:bg-emerald-50/30 transition-colors group"><td className="p-2"><input type="text" value={student.seatNo} onChange={(e) => handleUpdateStudent(student.id, 'seatNo', e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none text-center font-medium bg-white" placeholder="01" /></td><td className="p-2"><input type="text" value={student.name} onChange={(e) => handleUpdateStudent(student.id, 'name', e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none bg-white" placeholder="姓名" /></td>{sortedVisibleSubjects.map(subId => <td key={subId} className="p-2"><input type="number" value={student.scores[subId] || ''} onChange={(e) => handleUpdateScore(student.id, subId, e.target.value)} className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-300 outline-none text-center bg-white ${!scoringSubjectIds.includes(subId) ? 'text-gray-400 bg-gray-50' : ''}`} /></td>)}<td className="p-2 text-center"><button onClick={() => handleRemoveStudent(student.id)} className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors opacity-0 group-hover:opacity-100"><Icon name="Trash2" size={16} /></button></td></tr>)}</tbody></table></div></div>
+                        </div>}
+                        {activeTab === TABS.ANALYSIS && <div className="space-y-6">{visibleSubjectIds.includes('comp') && <div className="bg-white p-4 rounded-xl border border-orange-100 flex items-center gap-4 shadow-sm"><div className="flex items-center gap-2 text-orange-800 font-bold"><Icon name="PenTool" size={18} /> 作文分析設定：</div><div className="flex gap-2"> {[{ id: '100', label: '一般 (100分制)' }, { id: '6', label: '國中會考 (6級分)' }, { id: '50', label: '段考 (50分制)' }].map(mode => <button key={mode.id} onClick={() => setCompMode(mode.id)} className={`px-3 py-1.5 rounded-lg text-sm transition-all ${compMode === mode.id ? 'bg-orange-500 text-white shadow-md' : 'bg-orange-50 text-orange-700 hover:bg-orange-100'}`}>{mode.label}</button>)} </div></div>}<div className="space-y-8">{sortedVisibleSubjects.map(subId => { const stat = statistics[subId]; if(!stat || stat.count === 0) return null; const colorTheme = SUBJECT_COLORS[subId]?.ui || 'emerald'; return <div key={subId} className={`bg-white p-6 rounded-2xl shadow-sm border border-${colorTheme}-100`}><h3 className={`text-xl font-bold text-${colorTheme}-800 mb-4 border-b pb-2`}>{ALL_SUBJECTS.find(s=>s.id===subId)?.name} 分析 {subId === 'comp' && <span className="text-sm font-normal text-gray-500 ml-2">({stat.isSpecial ? '6級分' : (compMode==='50'?'50分制':'100分制')})</span>}</h3><div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">{['平均', '最高 / 最低', '標準差', '中位數', '應考人數'].map((label, i) => <div key={i} className="bg-gray-50 p-3 rounded-xl text-center"><div className="text-xs text-gray-500 mb-1">{label}</div><div className="text-xl font-bold text-gray-800">{[stat.avg, `${stat.max} / ${stat.min}`, stat.stdDev, stat.median, stat.count][i]}</div></div>)}</div><div className="mb-8"><h4 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2"><Icon name="BarChart3" size={16} /> 分數分佈長條圖</h4><div className="flex items-end h-48 gap-1 pb-2 border-b border-gray-100 pl-8 relative"><div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between text-[10px] text-gray-400"><span>{Math.max(...stat.distCounts)}</span><span>0</span></div>{[...stat.distCounts].reverse().map((count, idx, arr) => { const labelsRev = [...stat.distLabels].reverse(); const h = (count / (Math.max(...arr) || 1)) * 100; const intensity = idx < arr.length * 0.4 ? '300' : idx < arr.length * 0.7 ? '500' : '700'; return <div key={idx} className="flex-1 flex flex-col justify-end h-full group relative hover:bg-gray-50 rounded-t-lg"><div className={`mx-auto w-4/5 rounded-t-sm relative transition-all group-hover:brightness-110 bg-${colorTheme}-${intensity}`} style={{height: `${h}%`, minHeight: count>0?'4px':0}}><span className={`absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-bold text-${colorTheme}-700 opacity-0 group-hover:opacity-100 transition-opacity`}>{count}</span></div><span className="text-[10px] text-gray-400 text-center mt-1 truncate px-0.5">{labelsRev[idx]}</span></div>; })}</div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div><h4 className="text-sm font-bold text-gray-600 mb-2">{stat.isSpecial ? '級分人數表' : '十分級距表'}</h4><div className="overflow-hidden rounded-lg border border-gray-200"><table className="w-full text-xs text-center"><thead className="bg-gray-100"><tr><th>級距</th><th>人數</th></tr></thead><tbody>{stat.distLabels.map((label, i) => <tr key={i} className="border-t border-gray-100"><td className="py-1 text-gray-500 bg-gray-50">{label}</td><td className="font-medium">{stat.distCounts[i]}</td></tr>)}</tbody></table></div></div>{!stat.isSpecial && <div><h4 className="text-sm font-bold text-gray-600 mb-2">五分級距表</h4><div className="overflow-hidden rounded-lg border border-gray-200 h-64 overflow-y-auto"><table className="w-full text-xs text-center"><thead className="bg-gray-100 sticky top-0"><tr><th>級距</th><th>人數</th></tr></thead><tbody>{stat.dist5Labels.map((label, i) => <tr key={i} className="border-t border-gray-100"><td className="py-1 text-gray-500 bg-gray-50">{label}</td><td className="font-medium">{stat.dist5Counts[i]}</td></tr>)}</tbody></table></div></div>}</div></div>; })}</div></div>}
+                        {activeTab === TABS.REPORTS && <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100"><h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2"><Icon name="Settings" size={20} /> 報表輸出設定</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><div><label className="block text-sm font-medium text-gray-700 mb-1">主標題文字</label><input type="text" value={reportTitle} onChange={e => setReportTitle(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="例如：112學年度第一學期第一次段考" /></div><div><label className="block text-sm font-medium text-gray-700 mb-1">次標題文字 (選填)</label><input type="text" value={reportSubtitle} onChange={e => setReportSubtitle(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="例如：一年一班" /></div></div><div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200"><h4 className="text-sm font-bold text-gray-700 mb-3">勾選要顯示在報表(Word/Excel)中的統計項目：</h4><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{[ {k:'incMaxMin', l:'最高/最低分'}, {k:'incAvg', l:'平均分數'}, {k:'incStdDev', l:'標準差'}, {k:'incMedian', l:'中位數'}, {k:'incDist10', l:'十分級距表'}, {k:'incDist5', l:'五分級距表'}, {k:'incCompDist', l:'作文級距表'}, {k:'incRadar', l:'能力雷達圖 (僅Word)'} ].map(opt => <label key={opt.k} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={reportConfig[opt.k]} onChange={e => setReportConfig({...reportConfig, [opt.k]: e.target.checked})} className="rounded text-emerald-600 focus:ring-emerald-500" /><span className="text-sm text-gray-700">{opt.l}</span></label>)}</div><p className="text-xs text-orange-600 mt-4 bg-orange-50 p-2 rounded">💡 <strong>個人成績單排版建議：</strong> 為了最佳閱讀體驗，建議僅勾選「十分級距表」或「雷達圖」其中一項，或全部不勾選(維持傳統版面)。若同時勾選過多項目，可能會導致排版擁擠。</p></div><div className="flex flex-wrap gap-3"><button onClick={handleExportIndividualWord} className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 shadow-sm transition-all"><Icon name="User" size={18} /> 下載個人成績單 (Word)</button><button onClick={handleExportClassWord} className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md shadow-blue-200 transition-all"><Icon name="FileText" size={18} /> 下載班級總表 (Word)</button><button onClick={handleExportExcel} className="flex items-center gap-2 px-5 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 shadow-md shadow-green-200 transition-all"><Icon name="FileSpreadsheet" size={18} /> 下載班級總表 (Excel)</button></div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 opacity-70"><h4 className="text-sm font-bold text-gray-500 mb-4">預覽 (前 5 筆)</h4><div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-xs"><thead className="bg-gray-50 text-gray-700 border-b border-gray-200"><tr><th className="p-2 text-center w-12 sticky left-0 bg-gray-50">座號</th><th className="p-2 text-center w-20 sticky left-12 bg-gray-50 border-r border-gray-200">姓名</th>{sortedVisibleSubjects.slice(0,5).map(subId => <th key={subId} className="p-2 text-center text-gray-600">{ALL_SUBJECTS.find(s => s.id === subId)?.name}</th>)}{sortedVisibleSubjects.length > 5 && <th className="p-2 text-center text-gray-400">...</th>}<th className="p-2 text-center bg-emerald-50 text-emerald-800">總分</th><th className="p-2 text-center bg-emerald-50 text-emerald-800">平均</th><th className="p-2 text-center bg-yellow-50 text-yellow-800">排名</th></tr></thead><tbody className="divide-y divide-gray-100">{processedData.slice(0, 5).map((student) => <tr key={student.id}><td className="p-2 text-center sticky left-0 bg-white">{student.seatNo}</td><td className="p-2 text-center sticky left-12 bg-white border-r border-gray-100">{student.name}</td>{sortedVisibleSubjects.slice(0,5).map(subId => <td key={subId} className="p-2 text-center text-gray-600">{student.scores[subId]}</td>)}{sortedVisibleSubjects.length > 5 && <td className="p-2 text-center text-gray-400">...</td>}<td className="p-2 text-center font-bold text-emerald-700 bg-emerald-50/30">{student.total}</td><td className="p-2 text-center font-bold text-emerald-700 bg-emerald-50/30">{student.average}</td><td className="p-2 text-center font-bold text-yellow-50/30">#{student.rank}</td></tr>)}</tbody></table></div></div>
+                        </div>}
+                    </main>
+                    <footer className="bg-emerald-800 text-emerald-100 py-6 mt-8"><div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4"><div className="text-sm font-medium">2026@奕鈞老師製作</div><a href="https://www.facebook.com/share/1K5MsceXxS/?mibextid=wwXIfr" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-sm"><Icon name="Facebook" size={16} /> 追蹤我的 Facebook</a></div></footer>
+                    {showPasteModal && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"><div className="p-6 border-b border-gray-100 flex justify-between items-center"><h3 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Icon name="ClipboardPaste" className="text-emerald-500" /> 智慧貼上成績</h3><button onClick={() => setShowPasteModal(false)} className="text-gray-400 hover:text-gray-600">✕</button></div><div className="p-6 space-y-4"><div className="bg-amber-50 text-amber-800 p-4 rounded-lg text-sm flex gap-3"><div className="mt-1">💡</div><div><p className="font-bold mb-1">智慧識別 V10.0</p><p>直接從 Excel 複製貼上（含標題列），系統會自動對應座號、姓名與有開啟的科目。</p></div></div><textarea value={pasteInput} onChange={(e) => setPasteInput(e.target.value)} placeholder="例如：&#10;座號	姓名	國語	數學&#10;1	小明	90	80..." className="w-full h-48 p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-400 outline-none font-mono text-sm resize-none" /></div><div className="p-6 bg-gray-50 flex justify-end gap-3"><button onClick={() => setShowPasteModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">取消</button><button onClick={handlePasteData} disabled={!pasteInput.trim()} className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all">確認匯入</button></div></div></div>}
+                </div>
+            );
+        }
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
